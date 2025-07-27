@@ -34,6 +34,16 @@ export class Game extends Scene
             texture: 'player_char'
         });
 
+        // Scale character to be ~1/100 of screen area (from 32x32 to ~88x88 pixels)
+        // NOTE: Use this same scale (2.75) for all characters (enemies, bosses) for consistency
+        this.player.setScale(2.75);
+        
+        // Ensure physics body scales with the sprite for accurate collision detection
+        this.player.body!.setSize(
+            this.player.width * 0.6,  // Slightly smaller than visual for better gameplay feel
+            this.player.height * 0.8   // Taller hitbox for more natural collision
+        );
+
         // Set up player event listeners
         this.player.on('attack', (attackData: any) => {
             // Handle attack logic here
@@ -51,13 +61,15 @@ export class Game extends Scene
             this.scene.start('GameOver');
         });
 
-        // Debug text for player state and health
-        this.debugText = this.add.text(16, 16, '', {
-            fontSize: '18px',
+        // Debug text for player state and health (bottom of screen, follows camera)
+        this.debugText = this.add.text(16, 768 - 120, '', {
+            fontSize: '16px',
             color: '#ffffff',
-            backgroundColor: '#000000',
-            padding: { x: 8, y: 4 }
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: { x: 12, y: 8 }
         });
+        this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
+        this.debugText.setDepth(1000); // Always on top
 
         // Set up camera for horizontal scrolling level
         this.cameras.main.setBounds(0, 0, 3000, 768);
@@ -85,7 +97,7 @@ export class Game extends Scene
             `Level Progress: ${levelProgress}% (${Math.round(this.player.x)}/3000px)`,
             `State: ${this.player.getCurrentState()}`,
             `Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
-            `Speed: ${this.player.speed}`
+            `Speed: ${this.player.speed} | Scale: ${this.player.scaleX}x`
         ]);
     }
 }
