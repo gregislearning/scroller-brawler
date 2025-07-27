@@ -1,11 +1,13 @@
 import { Scene } from 'phaser';
 import { Player } from '../Player';
+import { CameraManager } from '../CameraManager';
 
 export class Game extends Scene
 {
     camera: Phaser.Cameras.Scene2D.Camera;
     background: Phaser.GameObjects.TileSprite;
     player: Player;
+    cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
 
     constructor ()
@@ -71,15 +73,23 @@ export class Game extends Scene
         this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
         this.debugText.setDepth(1000); // Always on top
 
-        // Set up camera for horizontal scrolling level
-        this.cameras.main.setBounds(0, 0, 3000, 768);
-        this.cameras.main.startFollow(this.player);
-        this.cameras.main.setFollowOffset(0, 0);
-        this.cameras.main.setLerp(0.1, 0.1);
+        // Initialize advanced camera system with look-ahead and deadzone
+        this.cameraManager = new CameraManager(this, this.cameras.main, this.player, {
+            lookAheadFactor: 0.4,        // Look ahead 40% of movement
+            lookAheadMaxDistance: 200,   // Max 200px look-ahead
+            deadzoneWidth: 300,          // 300px horizontal deadzone
+            deadzoneHeight: 150,         // 150px vertical deadzone  
+            followSpeed: 0.08,           // Smooth following when moving
+            returnSpeed: 0.05,           // Slower return when idle
+            worldWidth: 3000,            // Match our level width
+            worldHeight: 768,            // Match our level height
+            shakeEnabled: false,          // Enable camera shake effects
+            // shakeIntensity: 1.0          // Normal shake intensity
+        });
 
         // Instructions text (positioned relative to world, not camera)
-        this.add.text(200, 100, 'Arrow Keys or WASD to Move\nSPACE to Attack\nExplore the 3000px wide level!', {
-            fontFamily: 'Arial Black', fontSize: 20, color: '#ffffff',
+        this.add.text(200, 100, 'Arrow Keys or WASD to Move\nSPACE to Attack (with camera shake!)\nExplore the 3000px wide level!\nAdvanced Camera: Look-ahead + Deadzone', {
+            fontFamily: 'Arial Black', fontSize: 18, color: '#ffffff',
             stroke: '#000000', strokeThickness: 4,
             align: 'center'
         }).setOrigin(0.5);
@@ -89,15 +99,22 @@ export class Game extends Scene
     {
         // Update player
         this.player.update();
+        
+        // Update advanced camera system
+        this.cameraManager.update(this.time.now);
 
-        // Update debug text with level progress
+        // Update debug text with level progress and camera info
         const levelProgress = Math.round((this.player.x / 3000) * 100);
+        const cameraX = Math.round(this.cameras.main.worldView.centerX);
+        const cameraY = Math.round(this.cameras.main.worldView.centerY);
+        const velocity = this.player.body!.velocity;
+        
         this.debugText.setText([
-            `Position: ${Math.round(this.player.x)}, ${Math.round(this.player.y)}`,
-            `Level Progress: ${levelProgress}% (${Math.round(this.player.x)}/3000px)`,
-            `State: ${this.player.getCurrentState()}`,
-            `Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
-            `Speed: ${this.player.speed} | Scale: ${this.player.scaleX}x`
+            `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
+            `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
+            `State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
+            `Scale: ${this.player.scaleX}x | Camera: Look-ahead + Deadzone Active`,
+            `Controls: WASD/Arrows=Move, SPACE=Attack (with camera shake)`
         ]);
     }
 }
