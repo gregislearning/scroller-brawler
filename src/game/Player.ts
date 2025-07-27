@@ -1,0 +1,324 @@
+import { Scene, Physics } from 'phaser';
+
+export interface PlayerConfig {
+    scene: Scene;
+    x: number;
+    y: number;
+    texture: string;
+    frame?: string | number;
+}
+
+export enum PlayerState {
+    IDLE = 'idle',
+    WALKING = 'walking',
+    ATTACKING = 'attacking',
+    HURT = 'hurt',
+    DEAD = 'dead'
+}
+
+export class Player extends Physics.Arcade.Sprite {
+    private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
+    private wasdKeys: { [key: string]: Phaser.Input.Keyboard.Key };
+    
+    // Player stats
+    public maxHealth: number = 100;
+    public currentHealth: number = 100;
+    public attackDamage: number = 20;
+    public speed: number = 200;
+    
+    // State management
+    private currentState: PlayerState = PlayerState.IDLE;
+    private attackCooldown: number = 500; // milliseconds
+    private lastAttackTime: number = 0;
+    private isInvulnerable: boolean = false;
+    private invulnerabilityDuration: number = 1000; // milliseconds
+    
+    // Combat
+    private attackRange: number = 80;
+    private isAttacking: boolean = false;
+    
+    constructor(config: PlayerConfig) {
+        super(config.scene, config.x, config.y, config.texture, config.frame);
+        
+        // Add to scene and enable physics
+        this.scene.add.existing(this as any);
+        this.scene.physics.add.existing(this as any);
+        
+        // Set up physics properties
+        this.setCollideWorldBounds(true);
+        this.setDrag(500); // Add drag for smoother movement
+        
+        // Initialize input
+        this.setupInput();
+        
+        // Set initial state
+        this.setPlayerState(PlayerState.IDLE);
+        
+        // Create animations if they don't exist
+        this.createAnimations();
+    }
+    
+    private setupInput(): void {
+        // Cursor keys (arrow keys)
+        this.cursors = this.scene.input.keyboard!.createCursorKeys();
+        
+        // WASD keys
+        this.wasdKeys = this.scene.input.keyboard!.addKeys('W,S,A,D,SPACE') as { [key: string]: Phaser.Input.Keyboard.Key };
+    }
+    
+    private createAnimations(): void {
+        const animsManager = this.scene.anims;
+        
+        // Only create animations if they don't already exist
+        if (!animsManager.exists('player_idle')) {
+            animsManager.create({
+                key: 'player_idle',
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 0, end: 7 }), // Row 0: frames 0-7 (skip last 2 for smoother loop)
+                frameRate: 8,
+                repeat: -1
+            });
+        }
+        
+        if (!animsManager.exists('player_walk')) {
+            animsManager.create({
+                key: 'player_walk',
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 20, end: 27 }), // Row 2: frames 20-27 for walking
+                frameRate: 10,
+                repeat: -1
+            });
+        }
+        
+        if (!animsManager.exists('player_attack')) {
+            animsManager.create({
+                key: 'player_attack',
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 30, end: 35 }), // Row 3: frames 30-35 for attack
+                frameRate: 15,
+                repeat: 0
+            });
+        }
+        
+        if (!animsManager.exists('player_hurt')) {
+            animsManager.create({
+                key: 'player_hurt',
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 40, end: 45 }), // Row 4: frames 40-45 for hurt/dying
+                frameRate: 8,
+                repeat: 0
+            });
+        }
+    }
+    
+    public update(): void {
+        if (this.currentState === PlayerState.DEAD) {
+            return;
+        }
+        
+        this.handleInput();
+        this.updateState();
+        this.updateAnimations();
+    }
+    
+    private handleInput(): void {
+        if (this.currentState === PlayerState.ATTACKING || this.currentState === PlayerState.HURT) {
+            return;
+        }
+        
+        const leftPressed = this.cursors.left?.isDown || this.wasdKeys.A?.isDown;
+        const rightPressed = this.cursors.right?.isDown || this.wasdKeys.D?.isDown;
+        const upPressed = this.cursors.up?.isDown || this.wasdKeys.W?.isDown;
+        const downPressed = this.cursors.down?.isDown || this.wasdKeys.S?.isDown;
+        const attackPressed = this.cursors.space?.isDown || this.wasdKeys.SPACE?.isDown;
+        
+        // Handle movement
+        let velocityX = 0;
+        let velocityY = 0;
+        
+        if (leftPressed) {
+            velocityX = -this.speed;
+            this.setFlipX(true);
+        } else if (rightPressed) {
+            velocityX = this.speed;
+            this.setFlipX(false);
+        }
+        
+        if (upPressed) {
+            velocityY = -this.speed;
+        } else if (downPressed) {
+            velocityY = this.speed;
+        }
+        
+        // Normalize diagonal movement
+        if (velocityX !== 0 && velocityY !== 0) {
+            velocityX *= 0.707; // sqrt(2)/2
+            velocityY *= 0.707;
+        }
+        
+        this.setVelocity(velocityX, velocityY);
+        
+        // Handle attack
+        if (attackPressed && this.canAttack()) {
+            this.attack();
+        }
+    }
+    
+    private updateState(): void {
+        if (this.currentState === PlayerState.ATTACKING || 
+            this.currentState === PlayerState.HURT || 
+            this.currentState === PlayerState.DEAD) {
+            return;
+        }
+        
+        const velocity = this.body!.velocity;
+        const isMoving = Math.abs(velocity.x) > 10 || Math.abs(velocity.y) > 10;
+        
+        if (isMoving) {
+            this.setPlayerState(PlayerState.WALKING);
+        } else {
+            this.setPlayerState(PlayerState.IDLE);
+        }
+    }
+    
+    private updateAnimations(): void {
+        switch (this.currentState) {
+            case PlayerState.IDLE:
+                this.play('player_idle', true);
+                break;
+            case PlayerState.WALKING:
+                this.play('player_walk', true);
+                break;
+            case PlayerState.ATTACKING:
+                this.play('player_attack', true);
+                break;
+            case PlayerState.HURT:
+                this.play('player_hurt', true);
+                break;
+        }
+    }
+    
+    private setPlayerState(newState: PlayerState): void {
+        if (this.currentState !== newState) {
+            this.currentState = newState;
+            this.onStateChange(newState);
+        }
+    }
+    
+    private onStateChange(state: PlayerState): void {
+        switch (state) {
+            case PlayerState.ATTACKING:
+                this.isAttacking = true;
+                this.setVelocity(0, 0); // Stop movement during attack
+                
+                // End attack after animation
+                this.scene.time.delayedCall(300, () => {
+                    this.isAttacking = false;
+                    this.setPlayerState(PlayerState.IDLE);
+                });
+                break;
+                
+            case PlayerState.HURT:
+                this.setVelocity(0, 0);
+                this.makeInvulnerable();
+                
+                // End hurt state
+                this.scene.time.delayedCall(500, () => {
+                    if (this.currentHealth > 0) {
+                        this.setPlayerState(PlayerState.IDLE);
+                    }
+                });
+                break;
+        }
+    }
+    
+    private canAttack(): boolean {
+        const currentTime = this.scene.time.now;
+        return !this.isAttacking && (currentTime - this.lastAttackTime) >= this.attackCooldown;
+    }
+    
+    public attack(): void {
+        if (!this.canAttack()) return;
+        
+        this.lastAttackTime = this.scene.time.now;
+        this.setPlayerState(PlayerState.ATTACKING);
+        
+        // Create attack hitbox (you can customize this based on your needs)
+        const attackX = this.flipX ? this.x - this.attackRange : this.x + this.attackRange;
+        const attackY = this.y;
+        
+        // You can emit an event or call a method to handle attack collision
+        this.emit('attack', {
+            x: attackX,
+            y: attackY,
+            damage: this.attackDamage,
+            range: this.attackRange
+        });
+    }
+    
+    public takeDamage(damage: number): void {
+        if (this.isInvulnerable || this.currentState === PlayerState.DEAD) {
+            return;
+        }
+        
+        this.currentHealth = Math.max(0, this.currentHealth - damage);
+        
+        if (this.currentHealth <= 0) {
+            this.die();
+        } else {
+            this.setPlayerState(PlayerState.HURT);
+        }
+        
+        // Emit damage event for UI updates
+        this.emit('damage', this.currentHealth, this.maxHealth);
+    }
+    
+    private makeInvulnerable(): void {
+        this.isInvulnerable = true;
+        
+        // Visual feedback for invulnerability
+        this.scene.tweens.add({
+            targets: this,
+            alpha: 0.5,
+            duration: 100,
+            yoyo: true,
+            repeat: this.invulnerabilityDuration / 200,
+            onComplete: () => {
+                this.setAlpha(1);
+                this.isInvulnerable = false;
+            }
+        });
+    }
+    
+    private die(): void {
+        this.setPlayerState(PlayerState.DEAD);
+        this.setVelocity(0, 0);
+        
+        // Fade out effect
+        this.scene.tweens.add({
+            targets: this,
+            alpha: 0,
+            duration: 1000,
+            onComplete: () => {
+                this.emit('death');
+            }
+        });
+    }
+    
+    public heal(amount: number): void {
+        this.currentHealth = Math.min(this.maxHealth, this.currentHealth + amount);
+        this.emit('heal', this.currentHealth, this.maxHealth);
+    }
+    
+    public getHealthPercentage(): number {
+        return this.currentHealth / this.maxHealth;
+    }
+    
+    public getCurrentState(): PlayerState {
+        return this.currentState;
+    }
+    
+    public getAttackRange(): number {
+        return this.attackRange;
+    }
+    
+    public isAlive(): boolean {
+        return this.currentState !== PlayerState.DEAD;
+    }
+} 
