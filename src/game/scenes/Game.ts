@@ -1,11 +1,12 @@
 import { Scene } from 'phaser';
 import { Player } from '../Player';
 import { CameraManager } from '../CameraManager';
+import { ParallaxBackground } from '../ParallaxBackground';
 
 export class Game extends Scene
 {
     camera: Phaser.Cameras.Scene2D.Camera;
-    background: Phaser.GameObjects.TileSprite;
+    parallaxBackground: ParallaxBackground;
     player: Player;
     cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
@@ -18,12 +19,11 @@ export class Game extends Scene
     create ()
     {
         this.camera = this.cameras.main;
-        this.camera.setBackgroundColor(0x00ff00);
+        this.camera.setBackgroundColor(0x4a5d23); // Forest green background color
 
-        // Create extended background for scrolling level
-        this.background = this.add.tileSprite(0, 0, 3000, 768, 'background');
-        this.background.setOrigin(0, 0);
-        this.background.setAlpha(0.5);
+        // Create parallax background system with forest layers
+        this.parallaxBackground = new ParallaxBackground(this, this.cameras.main, 3000, 768);
+        this.parallaxBackground.setupForestLayers();
 
         // Enable physics with extended world bounds
         this.physics.world.setBounds(0, 0, 3000, 768);
@@ -39,6 +39,9 @@ export class Game extends Scene
         // Scale character to be ~1/100 of screen area (from 32x32 to ~88x88 pixels)
         // NOTE: Use this same scale (2.75) for all characters (enemies, bosses) for consistency
         this.player.setScale(2.75);
+        
+        // Set player depth to render in front of parallax background layers
+        this.player.setDepth(100);
         
         // Ensure physics body scales with the sprite for accurate collision detection
         this.player.body!.setSize(
@@ -64,11 +67,11 @@ export class Game extends Scene
         });
 
         // Debug text for player state and health (bottom of screen, follows camera)
-        this.debugText = this.add.text(16, 768 - 120, '', {
-            fontSize: '16px',
+        this.debugText = this.add.text(16, 768 - 140, '', {
+            fontSize: '14px',
             color: '#ffffff',
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: { x: 12, y: 8 }
+            padding: { x: 10, y: 6 }
         });
         this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
         this.debugText.setDepth(1000); // Always on top
@@ -88,11 +91,11 @@ export class Game extends Scene
         });
 
         // Instructions text (positioned relative to world, not camera)
-        this.add.text(200, 100, 'Arrow Keys or WASD to Move\nSPACE to Attack (with camera shake!)\nExplore the 3000px wide level!\nAdvanced Camera: Look-ahead + Deadzone', {
-            fontFamily: 'Arial Black', fontSize: 18, color: '#ffffff',
+        this.add.text(200, 100, 'Arrow Keys or WASD to Move\nSPACE to Attack\nExplore the Forest with Multi-layer Parallax!\nNotice: Background & Middle layers scroll at different speeds', {
+            fontFamily: 'Arial Black', fontSize: 16, color: '#ffffff',
             stroke: '#000000', strokeThickness: 4,
             align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(200); // Render above everything
     }
 
     update()
@@ -102,19 +105,23 @@ export class Game extends Scene
         
         // Update advanced camera system
         this.cameraManager.update(this.time.now);
+        
+        // Update parallax background system
+        this.parallaxBackground.update();
 
-        // Update debug text with level progress and camera info
+        // Update debug text with level progress, camera, and parallax info
         const levelProgress = Math.round((this.player.x / 3000) * 100);
         const cameraX = Math.round(this.cameras.main.worldView.centerX);
         const cameraY = Math.round(this.cameras.main.worldView.centerY);
         const velocity = this.player.body!.velocity;
+        const layerCount = this.parallaxBackground.getAllLayerConfigs().length;
         
         this.debugText.setText([
             `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
             `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
             `State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
-            `Scale: ${this.player.scaleX}x | Camera: Look-ahead + Deadzone Active`,
-            `Controls: WASD/Arrows=Move, SPACE=Attack (with camera shake)`
+            `Scale: ${this.player.scaleX}x | Forest Parallax: ${layerCount} layers (back.png + middle.png)`,
+            `Controls: WASD/Arrows=Move, SPACE=Attack | Forest Environment Active`
         ]);
     }
 }
