@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { Player } from '../Player';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
+import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
 
 export class Game extends Scene
 {
@@ -19,29 +20,29 @@ export class Game extends Scene
     create ()
     {
         this.camera = this.cameras.main;
-        this.camera.setBackgroundColor(0x4a5d23); // Forest green background color
+        this.camera.setBackgroundColor(FOREST_CONFIG.BACKGROUND_COLOR);
 
         // Create parallax background system with forest layers
-        this.parallaxBackground = new ParallaxBackground(this, this.cameras.main, 3000, 768);
+        this.parallaxBackground = new ParallaxBackground(this, this.cameras.main, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.WORLD_HEIGHT);
         this.parallaxBackground.setupForestLayers();
 
-        // Enable physics with extended world bounds
-        this.physics.world.setBounds(0, 0, 3000, 768);
+        // Enable physics with extended world bounds - walkable area is ground level
+        this.physics.world.setBounds(0, GAME_CONFIG.PHYSICS_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.PHYSICS_HEIGHT);
 
-        // Create player with character spritesheet (start near left side for scrolling)
+        // Create player with character spritesheet
         this.player = new Player({
             scene: this,
-            x: 200,
-            y: 384,
+            x: GAME_CONFIG.PLAYER_START_X,
+            y: GAME_CONFIG.PLAYER_START_Y,
             texture: 'player_char'
         });
 
-        // Scale character to be ~1/100 of screen area (from 32x32 to ~88x88 pixels)
-        // NOTE: Use this same scale (2.75) for all characters (enemies, bosses) for consistency
-        this.player.setScale(2.75);
+        // Scale character using configured scale factor
+        // NOTE: Use this same scale for all characters (enemies, bosses) for consistency
+        this.player.setScale(GAME_CONFIG.PLAYER_SCALE);
         
         // Set player depth to render in front of parallax background layers
-        this.player.setDepth(100);
+        this.player.setDepth(DEPTH_LAYERS.PLAYER);
         
         // Ensure physics body scales with the sprite for accurate collision detection
         this.player.body!.setSize(
@@ -67,35 +68,35 @@ export class Game extends Scene
         });
 
         // Debug text for player state and health (bottom of screen, follows camera)
-        this.debugText = this.add.text(16, 768 - 140, '', {
-            fontSize: '14px',
+        this.debugText = this.add.text(16, GAME_CONFIG.DEBUG.DEBUG_TEXT_Y, '', {
+            fontSize: `${GAME_CONFIG.DEBUG.DEBUG_TEXT_SIZE}px`,
             color: '#ffffff',
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: { x: 10, y: 6 }
+            padding: GAME_CONFIG.DEBUG.DEBUG_TEXT_PADDING
         });
         this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
-        this.debugText.setDepth(1000); // Always on top
+        this.debugText.setDepth(DEPTH_LAYERS.UI_DEBUG); // Always on top
 
-        // Initialize advanced camera system with look-ahead and deadzone
+        // Initialize advanced camera system with configured values
         this.cameraManager = new CameraManager(this, this.cameras.main, this.player, {
-            lookAheadFactor: 0.4,        // Look ahead 40% of movement
-            lookAheadMaxDistance: 200,   // Max 200px look-ahead
-            deadzoneWidth: 300,          // 300px horizontal deadzone
-            deadzoneHeight: 150,         // 150px vertical deadzone  
-            followSpeed: 0.08,           // Smooth following when moving
-            returnSpeed: 0.05,           // Slower return when idle
-            worldWidth: 3000,            // Match our level width
-            worldHeight: 768,            // Match our level height
-            shakeEnabled: false,          // Enable camera shake effects
-            // shakeIntensity: 1.0          // Normal shake intensity
+            lookAheadFactor: GAME_CONFIG.CAMERA.LOOK_AHEAD_FACTOR,
+            lookAheadMaxDistance: GAME_CONFIG.CAMERA.LOOK_AHEAD_MAX_DISTANCE,
+            deadzoneWidth: GAME_CONFIG.CAMERA.DEADZONE_WIDTH,
+            deadzoneHeight: GAME_CONFIG.CAMERA.DEADZONE_HEIGHT,
+            followSpeed: GAME_CONFIG.CAMERA.FOLLOW_SPEED,
+            returnSpeed: GAME_CONFIG.CAMERA.RETURN_SPEED,
+            worldWidth: GAME_CONFIG.WORLD_WIDTH,
+            worldHeight: GAME_CONFIG.WORLD_HEIGHT,
+            shakeEnabled: GAME_CONFIG.CAMERA.SHAKE_ENABLED,
+            shakeIntensity: GAME_CONFIG.CAMERA.SHAKE_INTENSITY
         });
 
         // Instructions text (positioned relative to world, not camera)
-        this.add.text(200, 100, 'Arrow Keys or WASD to Move\nSPACE to Attack\nExplore the Forest with Multi-layer Parallax!\nNotice: Background & Middle layers scroll at different speeds', {
+        this.add.text(GAME_CONFIG.PLAYER_START_X, CALCULATED_VALUES.CENTER_Y - 100, 'Arrow Keys or WASD to Move\nSPACE to Attack\nExplore the Forest Environment!\nGround layer (front.png) creates walkable surface', {
             fontFamily: 'Arial Black', fontSize: 16, color: '#ffffff',
             stroke: '#000000', strokeThickness: 4,
             align: 'center'
-        }).setOrigin(0.5).setDepth(200); // Render above everything
+        }).setOrigin(0.5).setDepth(DEPTH_LAYERS.UI_TEXT); // Render above everything
     }
 
     update()
@@ -120,8 +121,8 @@ export class Game extends Scene
             `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
             `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
             `State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
-            `Scale: ${this.player.scaleX}x | Forest Parallax: ${layerCount} layers (back.png + middle.png)`,
-            `Controls: WASD/Arrows=Move, SPACE=Attack | Forest Environment Active`
+            `Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount} | Using GameConstants`,
+            `Ground: ${GAME_CONFIG.GROUND_HEIGHT_RATIO * 100}% | Physics: ${GAME_CONFIG.PHYSICS_START_Y}-${GAME_CONFIG.PHYSICS_START_Y + GAME_CONFIG.PHYSICS_HEIGHT}px`
         ]);
     }
 }

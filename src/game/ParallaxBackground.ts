@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS } from './GameConstants';
 
 export interface ParallaxLayer {
     name: string;
@@ -29,18 +30,49 @@ export class ParallaxBackground {
     public addLayer(config: ParallaxLayer): void {
         this.layerConfigs.push(config);
         
-        // Create tile sprite for this layer
+        // Get the texture to determine its actual dimensions
+        const texture = this.scene.textures.get(config.texture);
+        const textureWidth = texture.source[0].width;
+        const textureHeight = texture.source[0].height;
+        
+        // Special handling for ground layer (bottom 50% of screen)
+        if (config.name === 'forest_ground') {
+            const layer = this.scene.add.tileSprite(
+                0, 
+                GAME_CONFIG.GROUND_START_Y,  // Position using constant
+                this.worldWidth, 
+                GAME_CONFIG.GROUND_HEIGHT,   // Height using constant
+                config.texture
+            );
+            
+            layer.setOrigin(0, 0);
+            // Scale to fit the ground area
+            const scaleY = GAME_CONFIG.GROUND_HEIGHT / textureHeight;
+            layer.setScale(config.scale, scaleY * config.scale);
+            layer.setAlpha(config.alpha);
+            layer.setDepth(config.depth);
+            layer.setScrollFactor(config.scrollFactor, 1);
+            
+            this.layers.push(layer);
+            return;
+        }
+        
+        // Regular background layers (full screen)
         const layer = this.scene.add.tileSprite(
             0, 
             config.offsetY, 
             this.worldWidth, 
-            this.worldHeight, 
+            textureHeight,  // Use actual texture height instead of world height
             config.texture
         );
         
         // Configure layer properties
         layer.setOrigin(0, 0);
-        layer.setScale(config.scale);
+        
+        // Scale to fill screen height while maintaining aspect ratio
+        const scaleY = this.worldHeight / textureHeight;
+        layer.setScale(config.scale, scaleY * config.scale);
+        
         layer.setAlpha(config.alpha);
         layer.setDepth(config.depth);
         
@@ -98,35 +130,34 @@ export class ParallaxBackground {
         // Layer 1: Far forest background (distant trees, sky)
         this.addLayer({
             name: 'forest_far_background',
-            texture: 'forest_back',
-            scrollFactor: 0.1,        // Moves very slowly for distance effect
-            scale: 1.0,               // Normal size
-            alpha: 0.8,               // Slightly transparent
-            offsetY: 0,               // No offset
-            depth: 0                  // Furthest back
+            texture: FOREST_CONFIG.LAYERS.FAR.TEXTURE,
+            scrollFactor: FOREST_CONFIG.LAYERS.FAR.SCROLL_FACTOR,
+            scale: 1.0,
+            alpha: FOREST_CONFIG.LAYERS.FAR.ALPHA,
+            offsetY: 0,
+            depth: FOREST_CONFIG.LAYERS.FAR.DEPTH
         });
         
         // Layer 2: Middle forest layer (trees, foliage)
         this.addLayer({
             name: 'forest_middle_background',
-            texture: 'forest_middle',
-            scrollFactor: 0.4,        // Moderate movement for middle depth
-            scale: 1.0,               // Normal size
-            alpha: 0.9,               // More opaque than far layer
-            offsetY: 0,               // No offset
-            depth: 1                  // Middle depth
+            texture: FOREST_CONFIG.LAYERS.MIDDLE.TEXTURE,
+            scrollFactor: FOREST_CONFIG.LAYERS.MIDDLE.SCROLL_FACTOR,
+            scale: 1.0,
+            alpha: FOREST_CONFIG.LAYERS.MIDDLE.ALPHA,
+            offsetY: 0,
+            depth: FOREST_CONFIG.LAYERS.MIDDLE.DEPTH
         });
         
-        // Optional: Keep the original background as a far distance layer with heavy tint
+        // Layer 3: Front ground layer - walkable environment surface  
         this.addLayer({
-            name: 'forest_sky',
-            texture: 'background',    // Use original bg as sky layer
-            scrollFactor: 0.05,       // Almost static (distant sky)
-            scale: 1.2,               // Slightly larger
-            alpha: 0.3,               // Very transparent
-            tint: 0x87CEEB,           // Sky blue tint
-            offsetY: -100,            // Offset upward for sky effect
-            depth: -1                 // Behind everything
+            name: 'forest_ground',
+            texture: FOREST_CONFIG.LAYERS.GROUND.TEXTURE,
+            scrollFactor: FOREST_CONFIG.LAYERS.GROUND.SCROLL_FACTOR,
+            scale: 1.0,
+            alpha: FOREST_CONFIG.LAYERS.GROUND.ALPHA,
+            offsetY: 0, // Positioned by special handling in addLayer method
+            depth: FOREST_CONFIG.LAYERS.GROUND.DEPTH
         });
         
         // The main game layer (player, enemies) will render at depth 100+

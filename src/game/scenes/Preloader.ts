@@ -35,8 +35,9 @@ export class Preloader extends Scene
         this.load.image('logo', 'logo.png');
         
         // Load forest parallax background layers
-        this.load.image('forest_back', 'forest/back.png');
-        this.load.image('forest_middle', 'forest/middle.png');
+        this.load.image('forest_back', 'backgrounds/forest/back.png');
+        this.load.image('forest_middle', 'backgrounds/forest/middle.png');
+        this.load.image('forest_front', 'backgrounds/forest/front.png');
         
         // Load player character spritesheet
         // TODO: Adjust frameWidth/frameHeight to match your actual sprite dimensions
