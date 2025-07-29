@@ -35,23 +35,38 @@ export class ParallaxBackground {
         const textureWidth = texture.source[0].width;
         const textureHeight = texture.source[0].height;
         
-        // Special handling for ground layer (bottom 50% of screen)
+        // Special handling for ground layer (bottom 50% of screen) - HARD CODED
         if (config.name === 'forest_ground') {
+            console.log('Creating forest ground layer...');
+            console.log('Front texture dimensions:', textureWidth, 'x', textureHeight);
+            
             const layer = this.scene.add.tileSprite(
-                0, 
-                GAME_CONFIG.GROUND_START_Y,  // Position using constant
-                this.worldWidth, 
-                GAME_CONFIG.GROUND_HEIGHT,   // Height using constant
+                0,          // X position
+                384,        // Y position - bottom half of screen
+                3000,       // Width - world width
+                384,        // Height - full bottom half (50% of 768px)
                 config.texture
             );
             
             layer.setOrigin(0, 0);
-            // Scale to fit the ground area
-            const scaleY = GAME_CONFIG.GROUND_HEIGHT / textureHeight;
-            layer.setScale(config.scale, scaleY * config.scale);
-            layer.setAlpha(config.alpha);
-            layer.setDepth(config.depth);
-            layer.setScrollFactor(config.scrollFactor, 1);
+            
+            // Scale to make the front image fill the height properly
+            const scaleX = 1;  // Normal horizontal scaling
+            const scaleY = 384 / textureHeight;  // Scale to fill 384px height exactly
+            
+            console.log('Calculated scaleY:', scaleY, '(to fill 384px from', textureHeight, 'px)');
+            
+            layer.setScale(scaleX, scaleY);
+            layer.setAlpha(1.0);
+            layer.setDepth(10);
+            layer.setScrollFactor(1.0, 1);
+            
+            console.log('Ground layer created:');
+            console.log('- Position:', layer.x, layer.y);
+            console.log('- Original texture size:', textureWidth, 'x', textureHeight);
+            console.log('- TileSprite size:', layer.width, 'x', layer.height);
+            console.log('- Scale applied:', layer.scaleX, 'x', layer.scaleY);
+            console.log('- Final rendered size:', layer.width * layer.scaleX, 'x', layer.height * layer.scaleY);
             
             this.layers.push(layer);
             return;
