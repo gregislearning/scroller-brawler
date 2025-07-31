@@ -94,13 +94,6 @@ export class CameraManager {
     }
     
     private setupPlayerEventListeners(): void {
-        // Listen for player attacks to trigger camera shake
-        this.player.on('attack', () => {
-            if (this.config.shakeEnabled) {
-                this.shakeCamera(80, 0.008);
-            }
-        });
-        
         // Listen for player damage to trigger impact shake
         this.player.on('damage', () => {
             if (this.config.shakeEnabled) {

@@ -45,6 +45,13 @@ export class Preloader extends Scene
             frameWidth: 32,   // Try 32, 48, or 64 depending on your sprite size
             frameHeight: 32   // Should match the height of each individual sprite
         });
+        
+        // Load samurai enemy spritesheet
+        // Row 1: idle (2 columns), Row 2: blocking (4 columns), Row 3: attacking (5 columns)
+        this.load.spritesheet('samurai_enemy', 'samuri_animations.png', {
+            frameWidth: 32,   // Adjust based on actual sprite dimensions
+            frameHeight: 32   // Should match the height of each individual sprite
+        });
     }
 
     create ()

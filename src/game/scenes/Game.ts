@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { Player } from '../Player';
+import { Enemy } from '../Enemy';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
 import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
@@ -9,6 +10,7 @@ export class Game extends Scene
     camera: Phaser.Cameras.Scene2D.Camera;
     parallaxBackground: ParallaxBackground;
     player: Player;
+    enemy: Enemy;
     cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
 
@@ -67,6 +69,60 @@ export class Game extends Scene
             this.scene.start('GameOver');
         });
 
+        // Create samurai enemy
+        this.enemy = new Enemy({
+            scene: this,
+            x: GAME_CONFIG.PLAYER_START_X + 300, // Start 300 pixels to the right of player
+            y: GAME_CONFIG.PLAYER_START_Y,
+            texture: 'samurai_enemy'
+        });
+
+        // Scale enemy using same scale as player for consistency
+        this.enemy.setScale(GAME_CONFIG.PLAYER_SCALE);
+        
+        // Set enemy depth to render alongside player
+        this.enemy.setDepth(DEPTH_LAYERS.PLAYER);
+        
+        // Set up enemy physics body
+        this.enemy.body!.setSize(
+            this.enemy.width * 0.6,
+            this.enemy.height * 0.8
+        );
+
+        // Set up enemy event listeners
+        this.enemy.on('attack', (attackData: any) => {
+            // Check if attack hits player
+            const distance = Phaser.Math.Distance.Between(
+                attackData.x, attackData.y,
+                this.player.x, this.player.y
+            );
+            
+            if (distance <= attackData.range) {
+                this.player.takeDamage(attackData.damage);
+            }
+        });
+
+        this.enemy.on('damage', (currentHealth: number, maxHealth: number) => {
+            console.log(`Enemy health: ${currentHealth}/${maxHealth}`);
+        });
+
+        this.enemy.on('death', () => {
+            console.log('Enemy defeated!');
+        });
+
+        // Set up collision detection between player attacks and enemy
+        this.player.on('attack', (attackData: any) => {
+            // Check if attack hits enemy
+            const distance = Phaser.Math.Distance.Between(
+                attackData.x, attackData.y,
+                this.enemy.x, this.enemy.y
+            );
+            
+            if (distance <= attackData.range && this.enemy.getState() !== 'dead') {
+                this.enemy.takeDamage(attackData.damage);
+            }
+        });
+
         // Debug text for player state and health (bottom of screen, follows camera)
         this.debugText = this.add.text(16, GAME_CONFIG.DEBUG.DEBUG_TEXT_Y, '', {
             fontSize: `${GAME_CONFIG.DEBUG.DEBUG_TEXT_SIZE}px`,
@@ -104,6 +160,11 @@ export class Game extends Scene
         // Update player
         this.player.update();
         
+        // Update enemy with player position for AI
+        if (this.enemy && this.enemy.active) {
+            this.enemy.update(this.player.x, this.player.y);
+        }
+        
         // Update advanced camera system
         this.cameraManager.update(this.time.now);
         
@@ -117,10 +178,14 @@ export class Game extends Scene
         const velocity = this.player.body!.velocity;
         const layerCount = this.parallaxBackground.getAllLayerConfigs().length;
         
+        const enemyHealth = this.enemy && this.enemy.active ? this.enemy.getHealth() : { current: 0, max: 0 };
+        const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
+        
         this.debugText.setText([
             `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
             `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
-            `State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
+            `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
+            `Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
             `Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount} | Using GameConstants`,
             `Ground: ${GAME_CONFIG.GROUND_HEIGHT_RATIO * 100}% | Physics: ${GAME_CONFIG.PHYSICS_START_Y}-${GAME_CONFIG.PHYSICS_START_Y + GAME_CONFIG.PHYSICS_HEIGHT}px`
         ]);
