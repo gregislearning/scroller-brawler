@@ -54,6 +54,19 @@ export const GAME_CONFIG = {
         get DEBUG_TEXT_Y() { return GAME_CONFIG.SCREEN_HEIGHT - 140; },
         DEBUG_TEXT_SIZE: 14,
         DEBUG_TEXT_PADDING: { x: 10, y: 6 }
+    },
+    
+    // UI Configuration
+    UI: {
+        HEALTH_BAR: {
+            PLAYER_HUD_X: 120,
+            PLAYER_HUD_Y: 30,
+            PLAYER_HUD_WIDTH: 200,
+            PLAYER_HUD_HEIGHT: 20,
+            FLOATING_WIDTH: 60,
+            FLOATING_HEIGHT: 8,
+            FLOATING_OFFSET_Y: -60
+        }
     }
 } as const;
 

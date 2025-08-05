@@ -1,4 +1,5 @@
 import { Scene, Physics } from 'phaser';
+import { HealthBar } from './HealthBar';
 
 export interface EnemyConfig {
     scene: Scene;
@@ -42,6 +43,9 @@ export class Enemy extends Physics.Arcade.Sprite {
     private lastActionTime: number = 0;
     private actionCooldown: number = 1000; // Time between AI actions
     
+    // UI Elements
+    private healthBar: HealthBar;
+    
     constructor(config: EnemyConfig) {
         super(config.scene, config.x, config.y, config.texture, config.frame);
         
@@ -58,6 +62,24 @@ export class Enemy extends Physics.Arcade.Sprite {
         
         // Create animations if they don't exist
         this.createAnimations();
+        
+        // Create health bar that follows the enemy
+        this.healthBar = new HealthBar({
+            scene: this.scene,
+            x: this.x,
+            y: this.y - 60, // Above the enemy
+            width: 60,
+            height: 8,
+            maxHealth: this.maxHealth,
+            currentHealth: this.currentHealth,
+            followTarget: this,
+            offsetX: 0,
+            offsetY: -60,
+            backgroundColor: 0x404040,
+            healthColor: 0xff4444, // Red for enemy
+            borderColor: 0xffffff,
+            borderWidth: 1
+        });
     }
     
     private createAnimations(): void {
@@ -109,6 +131,9 @@ export class Enemy extends Physics.Arcade.Sprite {
         this.updateAI(playerX, playerY);
         this.updateState();
         this.updateAnimations();
+        
+        // Update health bar
+        this.healthBar.update();
     }
     
     private updateAI(playerX: number, playerY: number): void {
@@ -280,6 +305,9 @@ export class Enemy extends Physics.Arcade.Sprite {
         
         this.currentHealth = Math.max(0, this.currentHealth - damage);
         
+        // Update health bar
+        this.healthBar.updateHealth(this.currentHealth, this.maxHealth);
+        
         if (this.currentHealth <= 0) {
             this.die();
         } else {
@@ -311,11 +339,16 @@ export class Enemy extends Physics.Arcade.Sprite {
         this.setVelocity(0, 0);
         this.setTint(0x666666); // Gray tint for death
         
+        // Hide health bar
+        this.healthBar.setVisible(false);
+        
         // Emit death event
         this.emit('death');
         
         // Remove after a delay
         this.scene.time.delayedCall(2000, () => {
+            // Clean up health bar
+            this.healthBar.destroy();
             this.destroy();
         });
     }

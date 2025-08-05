@@ -3,6 +3,7 @@ import { Player } from '../Player';
 import { Enemy } from '../Enemy';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
+import { HealthBar } from '../HealthBar';
 import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
 
 export class Game extends Scene
@@ -13,6 +14,7 @@ export class Game extends Scene
     enemy: Enemy;
     cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
+    playerHUD: HealthBar;
 
     constructor ()
     {
@@ -52,6 +54,32 @@ export class Game extends Scene
             this.player.height * 0.8   // Taller hitbox for more natural collision
         );
 
+        // Create fixed player HUD health bar (top-left of screen)
+        this.playerHUD = new HealthBar({
+            scene: this,
+            x: 120,
+            y: 30,
+            width: 200,
+            height: 20,
+            maxHealth: this.player.maxHealth,
+            currentHealth: this.player.currentHealth,
+            backgroundColor: 0x404040,
+            healthColor: 0x00ff00,
+            borderColor: 0xffffff,
+            borderWidth: 2,
+            fixed: true, // Fixed to camera
+            showText: true // Show health numbers
+        });
+
+        // Add player name/label
+        this.add.text(20, 20, 'Player', {
+            fontSize: '16px',
+            color: '#ffffff',
+            fontFamily: 'Arial',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setScrollFactor(0).setDepth(DEPTH_LAYERS.UI_TEXT);
+
         // Set up player event listeners
         this.player.on('attack', (attackData: any) => {
             // Handle attack logic here
@@ -61,6 +89,8 @@ export class Game extends Scene
         this.player.on('damage', (currentHealth: number, maxHealth: number) => {
             // Handle damage - update UI, etc.
             console.log(`Player health: ${currentHealth}/${maxHealth}`);
+            // Update HUD health bar
+            this.playerHUD.updateHealth(currentHealth, maxHealth);
         });
 
         this.player.on('death', () => {

@@ -1,4 +1,5 @@
 import { Scene, Physics } from 'phaser';
+import { HealthBar } from './HealthBar';
 
 export interface PlayerConfig {
     scene: Scene;
@@ -37,6 +38,9 @@ export class Player extends Physics.Arcade.Sprite {
     private attackRange: number = 80;
     private isAttacking: boolean = false;
     
+    // UI Elements
+    private healthBar: HealthBar;
+    
     constructor(config: PlayerConfig) {
         super(config.scene, config.x, config.y, config.texture, config.frame);
         
@@ -56,6 +60,24 @@ export class Player extends Physics.Arcade.Sprite {
         
         // Create animations if they don't exist
         this.createAnimations();
+        
+        // Create health bar that follows the player
+        this.healthBar = new HealthBar({
+            scene: this.scene,
+            x: this.x,
+            y: this.y - 60, // Above the player
+            width: 60,
+            height: 8,
+            maxHealth: this.maxHealth,
+            currentHealth: this.currentHealth,
+            followTarget: this,
+            offsetX: 0,
+            offsetY: -60,
+            backgroundColor: 0x404040,
+            healthColor: 0x00ff00,
+            borderColor: 0xffffff,
+            borderWidth: 1
+        });
     }
     
     private setupInput(): void {
@@ -115,6 +137,9 @@ export class Player extends Physics.Arcade.Sprite {
         this.handleInput();
         this.updateState();
         this.updateAnimations();
+        
+        // Update health bar
+        this.healthBar.update();
     }
     
     private handleInput(): void {
@@ -259,6 +284,9 @@ export class Player extends Physics.Arcade.Sprite {
         
         this.currentHealth = Math.max(0, this.currentHealth - damage);
         
+        // Update health bar
+        this.healthBar.updateHealth(this.currentHealth, this.maxHealth);
+        
         if (this.currentHealth <= 0) {
             this.die();
         } else {
@@ -289,6 +317,9 @@ export class Player extends Physics.Arcade.Sprite {
     private die(): void {
         this.setPlayerState(PlayerState.DEAD);
         this.setVelocity(0, 0);
+        
+        // Hide health bar
+        this.healthBar.setVisible(false);
         
         // Fade out effect
         this.scene.tweens.add({
