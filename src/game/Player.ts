@@ -1,5 +1,6 @@
 import { Scene, Physics } from 'phaser';
 import { HealthBar } from './HealthBar';
+import { GAME_CONFIG } from './GameConstants';
 
 export interface PlayerConfig {
     scene: Scene;
@@ -26,6 +27,12 @@ export class Player extends Physics.Arcade.Sprite {
     public currentHealth: number = 100;
     public attackDamage: number = 20;
     public speed: number = 200;
+    
+    // Leveling system
+    public level: number = 1;
+    public experience: number = 0;
+    public experienceToNextLevel: number = GAME_CONFIG.LEVELING.BASE_EXPERIENCE_TO_LEVEL;
+    public totalExperience: number = 0;
     
     // State management
     private currentState: PlayerState = PlayerState.IDLE;
@@ -343,6 +350,96 @@ export class Player extends Physics.Arcade.Sprite {
     
     public getCurrentState(): PlayerState {
         return this.currentState;
+    }
+    
+    public gainExperience(amount: number): void {
+        console.log(`Player gained ${amount} experience!`);
+        
+        this.experience += amount;
+        this.totalExperience += amount;
+        
+        // Check for level up
+        while (this.experience >= this.experienceToNextLevel) {
+            this.levelUp();
+        }
+        
+        // Emit experience gain event for UI updates
+        this.emit('experienceGain', {
+            gained: amount,
+            current: this.experience,
+            needed: this.experienceToNextLevel,
+            level: this.level,
+            total: this.totalExperience
+        });
+    }
+    
+    private levelUp(): void {
+        this.experience -= this.experienceToNextLevel;
+        this.level++;
+        
+        // Calculate experience needed for next level (exponential growth)
+        this.experienceToNextLevel = Math.floor(
+            GAME_CONFIG.LEVELING.BASE_EXPERIENCE_TO_LEVEL * 
+            Math.pow(GAME_CONFIG.LEVELING.EXPERIENCE_MULTIPLIER, this.level - 1)
+        );
+        
+        // Apply level up bonuses
+        this.applyLevelUpBonuses();
+        
+        console.log(`Level up! Player is now level ${this.level}. Next level requires ${this.experienceToNextLevel} XP.`);
+        
+        // Emit level up event
+        this.emit('levelUp', {
+            newLevel: this.level,
+            experienceToNext: this.experienceToNextLevel,
+            bonuses: this.getLastLevelBonuses()
+        });
+    }
+    
+    private applyLevelUpBonuses(): void {
+        // Increase max health
+        const healthIncrease = GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.HEALTH;
+        this.maxHealth += healthIncrease;
+        this.currentHealth += healthIncrease; // Also heal the increase amount
+        
+        // Increase attack damage
+        const damageIncrease = GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.DAMAGE;
+        this.attackDamage += damageIncrease;
+        
+        // Increase speed (capped at configured maximum)
+        const speedIncrease = GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.SPEED;
+        if (this.speed < GAME_CONFIG.LEVELING.SPEED_CAP) {
+            this.speed += speedIncrease;
+        }
+        
+        // Update health bar to reflect new max health
+        this.healthBar.updateHealth(this.currentHealth, this.maxHealth);
+    }
+    
+    private getLastLevelBonuses(): { health: number; damage: number; speed: number } {
+        return {
+            health: GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.HEALTH,
+            damage: GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.DAMAGE,
+            speed: this.speed < GAME_CONFIG.LEVELING.SPEED_CAP ? GAME_CONFIG.LEVELING.BONUSES_PER_LEVEL.SPEED : 0
+        };
+    }
+    
+    public getLevelInfo(): { 
+        level: number; 
+        experience: number; 
+        experienceToNext: number; 
+        totalExperience: number;
+        experienceProgress: number; // Percentage to next level
+    } {
+        const experienceProgress = (this.experience / this.experienceToNextLevel) * 100;
+        
+        return {
+            level: this.level,
+            experience: this.experience,
+            experienceToNext: this.experienceToNextLevel,
+            totalExperience: this.totalExperience,
+            experienceProgress: Math.round(experienceProgress)
+        };
     }
     
     public getAttackRange(): number {

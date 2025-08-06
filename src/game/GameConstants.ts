@@ -66,6 +66,12 @@ export const GAME_CONFIG = {
             FLOATING_WIDTH: 60,
             FLOATING_HEIGHT: 8,
             FLOATING_OFFSET_Y: -60
+        },
+        EXPERIENCE_BAR: {
+            PLAYER_HUD_X: 120,
+            PLAYER_HUD_Y: 60,
+            PLAYER_HUD_WIDTH: 200,
+            PLAYER_HUD_HEIGHT: 15
         }
     },
     
@@ -75,6 +81,23 @@ export const GAME_CONFIG = {
         SPAWN_INTERVAL: 400, // Distance between spawn points
         TRIGGER_DISTANCE: 200, // Distance from player when spawn triggers
         SPAWN_OFFSET_FROM_EDGE: 50 // Offset from top/bottom of walkable area
+    },
+    
+    // Player Leveling Configuration
+    LEVELING: {
+        BASE_EXPERIENCE_TO_LEVEL: 100, // XP needed for level 2
+        EXPERIENCE_MULTIPLIER: 1.5, // Exponential growth factor
+        BONUSES_PER_LEVEL: {
+            HEALTH: 10,
+            DAMAGE: 2,
+            SPEED: 5
+        },
+        SPEED_CAP: 300, // Maximum speed from leveling
+        ENEMY_EXPERIENCE_VALUES: {
+            BASIC_ENEMY: 25, // XP from killing a basic enemy
+            TOUGH_ENEMY: 50, // XP from killing a tougher enemy (future)
+            BOSS_ENEMY: 100  // XP from killing a boss (future)
+        }
     }
 } as const;
 

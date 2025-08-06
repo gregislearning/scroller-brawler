@@ -13,6 +13,7 @@ export interface EnemySpawnerConfig {
     scene: Scene;
     player: Phaser.GameObjects.Sprite;
     maxEnemies?: number; // Maximum enemies alive at once
+    onEnemyKilled?: (enemy: Enemy) => void; // Callback for when enemy dies
 }
 
 export class EnemySpawner {
@@ -23,11 +24,13 @@ export class EnemySpawner {
     private maxEnemies: number;
     private lastSpawnX: number = 0;
     private spawnInterval: number = GAME_CONFIG.SPAWNING.SPAWN_INTERVAL;
+    private onEnemyKilled?: (enemy: Enemy) => void;
     
     constructor(config: EnemySpawnerConfig) {
         this.scene = config.scene;
         this.player = config.player;
         this.maxEnemies = config.maxEnemies || GAME_CONFIG.SPAWNING.MAX_ENEMIES;
+        this.onEnemyKilled = config.onEnemyKilled;
         
         this.setupSpawnPoints();
     }
@@ -102,6 +105,11 @@ export class EnemySpawner {
         enemy.on('death', () => {
             console.log('Enemy defeated in spawner!');
             this.removeEnemy(enemy);
+            
+            // Call the callback if provided (for experience, etc.)
+            if (this.onEnemyKilled) {
+                this.onEnemyKilled(enemy);
+            }
         });
 
         enemy.on('damage', (currentHealth: number, maxHealth: number) => {

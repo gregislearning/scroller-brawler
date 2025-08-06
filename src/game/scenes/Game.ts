@@ -4,6 +4,7 @@ import { Enemy } from '../Enemy';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
 import { HealthBar } from '../HealthBar';
+import { ExperienceBar } from '../ExperienceBar';
 import { EnemySpawner } from '../EnemySpawner';
 import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
 
@@ -17,6 +18,7 @@ export class Game extends Scene
     cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
     playerHUD: HealthBar;
+    playerExperienceBar: ExperienceBar;
 
     constructor ()
     {
@@ -82,6 +84,24 @@ export class Game extends Scene
             strokeThickness: 2
         }).setScrollFactor(0).setDepth(DEPTH_LAYERS.UI_TEXT);
 
+        // Create player experience bar (below health bar)
+        const playerLevelInfo = this.player.getLevelInfo();
+        this.playerExperienceBar = new ExperienceBar({
+            scene: this,
+            x: 120,
+            y: 60, // Below the health bar
+            width: 200,
+            height: 15,
+            currentExperience: playerLevelInfo.experience,
+            experienceToNext: playerLevelInfo.experienceToNext,
+            level: playerLevelInfo.level,
+            backgroundColor: 0x404040,
+            experienceColor: 0x00aaff,
+            borderColor: 0xffffff,
+            borderWidth: 2,
+            showText: true
+        });
+
         // Set up player event listeners
         this.player.on('attack', (attackData: any) => {
             // Handle attack logic here
@@ -101,11 +121,26 @@ export class Game extends Scene
             this.scene.start('GameOver');
         });
 
+        this.player.on('levelUp', (levelData: any) => {
+            console.log(`Player leveled up to ${levelData.newLevel}!`);
+            console.log(`Bonuses: +${levelData.bonuses.health} HP, +${levelData.bonuses.damage} ATK, +${levelData.bonuses.speed} SPD`);
+        });
+
+        this.player.on('experienceGain', (expData: any) => {
+            console.log(`XP: ${expData.current}/${expData.needed} (${expData.gained} gained)`);
+            // Update experience bar
+            this.playerExperienceBar.updateExperience(expData.current, expData.needed, expData.level);
+        });
+
         // Initialize enemy spawning system
         this.enemySpawner = new EnemySpawner({
             scene: this,
             player: this.player,
-            maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES
+            maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES,
+            onEnemyKilled: (enemy: Enemy) => {
+                // Award experience to player when spawned enemies die
+                this.player.gainExperience(GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY);
+            }
         });
 
         // Keep the original enemy for now (will be phased out)
@@ -175,6 +210,8 @@ export class Game extends Scene
 
         this.enemy.on('death', () => {
             console.log('Enemy defeated!');
+            // Award experience to player
+            this.player.gainExperience(GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY);
         });
 
         // Set up player attack system that works with all enemies
@@ -264,14 +301,15 @@ export class Game extends Scene
         const enemyHealth = this.enemy && this.enemy.active ? this.enemy.getHealth() : { current: 0, max: 0 };
         const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
         const spawnedEnemyCount = this.enemySpawner.getEnemyCount();
+        const playerLevelInfo = this.player.getLevelInfo();
         
         this.debugText.setText([
             `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
             `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
-            `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
+            `Player - Level: ${playerLevelInfo.level} | XP: ${playerLevelInfo.experience}/${playerLevelInfo.experienceToNext} (${playerLevelInfo.experienceProgress}%)`,
+            `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth} | ATK: ${this.player.attackDamage}`,
             `Original Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
-            `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`,
-            `Ground: ${GAME_CONFIG.GROUND_HEIGHT_RATIO * 100}% | Physics: ${GAME_CONFIG.PHYSICS_START_Y}-${GAME_CONFIG.PHYSICS_START_Y + GAME_CONFIG.PHYSICS_HEIGHT}px`
+            `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`
         ]);
     }
 }
