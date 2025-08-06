@@ -67,6 +67,14 @@ export const GAME_CONFIG = {
             FLOATING_HEIGHT: 8,
             FLOATING_OFFSET_Y: -60
         }
+    },
+    
+    // Enemy Spawning Configuration
+    SPAWNING: {
+        MAX_ENEMIES: 3,
+        SPAWN_INTERVAL: 400, // Distance between spawn points
+        TRIGGER_DISTANCE: 200, // Distance from player when spawn triggers
+        SPAWN_OFFSET_FROM_EDGE: 50 // Offset from top/bottom of walkable area
     }
 } as const;
 

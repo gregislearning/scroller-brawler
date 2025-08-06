@@ -4,6 +4,7 @@ import { Enemy } from '../Enemy';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
 import { HealthBar } from '../HealthBar';
+import { EnemySpawner } from '../EnemySpawner';
 import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
 
 export class Game extends Scene
@@ -11,7 +12,8 @@ export class Game extends Scene
     camera: Phaser.Cameras.Scene2D.Camera;
     parallaxBackground: ParallaxBackground;
     player: Player;
-    enemy: Enemy;
+    enemy: Enemy; // Keep for backwards compatibility, but will be removed
+    enemySpawner: EnemySpawner;
     cameraManager: CameraManager;
     debugText: Phaser.GameObjects.Text;
     playerHUD: HealthBar;
@@ -99,7 +101,14 @@ export class Game extends Scene
             this.scene.start('GameOver');
         });
 
-        // Create samurai enemy
+        // Initialize enemy spawning system
+        this.enemySpawner = new EnemySpawner({
+            scene: this,
+            player: this.player,
+            maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES
+        });
+
+        // Keep the original enemy for now (will be phased out)
         this.enemy = new Enemy({
             scene: this,
             x: GAME_CONFIG.PLAYER_START_X + 300, // Start 300 pixels to the right of player
@@ -119,39 +128,8 @@ export class Game extends Scene
             this.enemy.height * 0.8
         );
 
-        // Set up enemy event listeners
-        this.enemy.on('attack', (attackData: any) => {
-            // Check if attack hits player
-            const distance = Phaser.Math.Distance.Between(
-                attackData.x, attackData.y,
-                this.player.x, this.player.y
-            );
-            
-            if (distance <= attackData.range) {
-                this.player.takeDamage(attackData.damage);
-            }
-        });
-
-        this.enemy.on('damage', (currentHealth: number, maxHealth: number) => {
-            console.log(`Enemy health: ${currentHealth}/${maxHealth}`);
-        });
-
-        this.enemy.on('death', () => {
-            console.log('Enemy defeated!');
-        });
-
-        // Set up collision detection between player attacks and enemy
-        this.player.on('attack', (attackData: any) => {
-            // Check if attack hits enemy
-            const distance = Phaser.Math.Distance.Between(
-                attackData.x, attackData.y,
-                this.enemy.x, this.enemy.y
-            );
-            
-            if (distance <= attackData.range && this.enemy.getState() !== 'dead') {
-                this.enemy.takeDamage(attackData.damage);
-            }
-        });
+        // Set up combat system that works with both single enemy and spawned enemies
+        this.setupCombatSystem();
 
         // Debug text for player state and health (bottom of screen, follows camera)
         this.debugText = this.add.text(16, GAME_CONFIG.DEBUG.DEBUG_TEXT_Y, '', {
@@ -185,14 +163,89 @@ export class Game extends Scene
         }).setOrigin(0.5).setDepth(DEPTH_LAYERS.UI_TEXT); // Render above everything
     }
 
+    private setupCombatSystem(): void {
+        // Set up enemy event listeners for the original enemy (backwards compatibility)
+        this.enemy.on('attack', (attackData: any) => {
+            this.handleEnemyAttack(attackData);
+        });
+
+        this.enemy.on('damage', (currentHealth: number, maxHealth: number) => {
+            console.log(`Enemy health: ${currentHealth}/${maxHealth}`);
+        });
+
+        this.enemy.on('death', () => {
+            console.log('Enemy defeated!');
+        });
+
+        // Set up player attack system that works with all enemies
+        this.player.on('attack', (attackData: any) => {
+            this.handlePlayerAttack(attackData);
+        });
+    }
+
+    private handleEnemyAttack(attackData: any): void {
+        // Check if attack hits player
+        const distance = Phaser.Math.Distance.Between(
+            attackData.x, attackData.y,
+            this.player.x, this.player.y
+        );
+        
+        if (distance <= attackData.range) {
+            this.player.takeDamage(attackData.damage);
+        }
+    }
+
+    private handlePlayerAttack(attackData: any): void {
+        // Check attacks against the original enemy
+        if (this.enemy && this.enemy.active) {
+            const distance = Phaser.Math.Distance.Between(
+                attackData.x, attackData.y,
+                this.enemy.x, this.enemy.y
+            );
+            
+            if (distance <= attackData.range && this.enemy.getState() !== 'dead') {
+                this.enemy.takeDamage(attackData.damage);
+            }
+        }
+
+        // Check attacks against all spawned enemies
+        const spawnedEnemies = this.enemySpawner.getActiveEnemies();
+        for (const enemy of spawnedEnemies) {
+            const distance = Phaser.Math.Distance.Between(
+                attackData.x, attackData.y,
+                enemy.x, enemy.y
+            );
+            
+            if (distance <= attackData.range && enemy.getState() !== 'dead') {
+                enemy.takeDamage(attackData.damage);
+            }
+        }
+    }
+
     update()
     {
         // Update player
         this.player.update();
         
-        // Update enemy with player position for AI
+        // Update enemy spawning system
+        this.enemySpawner.update();
+        
+        // Update original enemy with player position for AI (backwards compatibility)
         if (this.enemy && this.enemy.active) {
             this.enemy.update(this.player.x, this.player.y);
+        }
+
+        // Update all spawned enemies
+        const spawnedEnemies = this.enemySpawner.getActiveEnemies();
+        for (const enemy of spawnedEnemies) {
+            enemy.update(this.player.x, this.player.y);
+            
+            // Set up attack event listener for each spawned enemy (if not already set)
+            if (enemy.listeners('attack').length === 0) {
+                enemy.on('attack', (attackData: any) => {
+                    this.handleEnemyAttack(attackData);
+                });
+            }
         }
         
         // Update advanced camera system
@@ -201,7 +254,7 @@ export class Game extends Scene
         // Update parallax background system
         this.parallaxBackground.update();
 
-        // Update debug text with level progress, camera, and parallax info
+        // Update debug text with level progress, camera, and enemy info
         const levelProgress = Math.round((this.player.x / 3000) * 100);
         const cameraX = Math.round(this.cameras.main.worldView.centerX);
         const cameraY = Math.round(this.cameras.main.worldView.centerY);
@@ -210,13 +263,14 @@ export class Game extends Scene
         
         const enemyHealth = this.enemy && this.enemy.active ? this.enemy.getHealth() : { current: 0, max: 0 };
         const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
+        const spawnedEnemyCount = this.enemySpawner.getEnemyCount();
         
         this.debugText.setText([
             `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
             `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
             `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth}`,
-            `Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
-            `Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount} | Using GameConstants`,
+            `Original Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
+            `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`,
             `Ground: ${GAME_CONFIG.GROUND_HEIGHT_RATIO * 100}% | Physics: ${GAME_CONFIG.PHYSICS_START_Y}-${GAME_CONFIG.PHYSICS_START_Y + GAME_CONFIG.PHYSICS_HEIGHT}px`
         ]);
     }
