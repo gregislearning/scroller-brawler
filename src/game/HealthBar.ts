@@ -63,6 +63,8 @@ export class HealthBar {
             this.width, this.height, 
             config.healthColor || 0x00ff00
         );
+        // Set origin to left-center so it grows from left to right
+        this.healthFill.setOrigin(0, 0.5);
         
         // Border
         this.border = this.scene.add.rectangle(
@@ -118,7 +120,8 @@ export class HealthBar {
         
         // Update health fill width and position
         this.healthFill.width = healthWidth;
-        this.healthFill.x = -(this.width - healthWidth) / 2; // Align to left side
+        // Position at left edge of container (since origin is set to left-center)
+        this.healthFill.x = -this.width / 2;
         
         // Change color based on health percentage
         if (healthPercentage > 0.6) {

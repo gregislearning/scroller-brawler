@@ -55,6 +55,8 @@ export class ExperienceBar {
             this.width, this.height, 
             config.experienceColor || 0x00aaff
         );
+        // Set origin to left-center so it grows from left to right
+        this.experienceFill.setOrigin(0, 0.5);
         
         // Border
         this.border = this.scene.add.rectangle(
@@ -114,7 +116,8 @@ export class ExperienceBar {
         
         // Update experience fill width and position
         this.experienceFill.width = experienceWidth;
-        this.experienceFill.x = -(this.width - experienceWidth) / 2; // Align to left side
+        // Position at left edge of container (since origin is set to left-center)
+        this.experienceFill.x = -this.width / 2;
         
         // Update level text
         this.levelText!.setText(`LV ${this.level}`);
