@@ -1,5 +1,6 @@
 import { Scene, Physics } from 'phaser';
 import { HealthBar } from './HealthBar';
+import { GAME_CONFIG } from './GameConstants';
 
 export interface EnemyConfig {
     scene: Scene;
@@ -27,7 +28,7 @@ export class Enemy extends Physics.Arcade.Sprite {
     
     // State management
     private currentState: EnemyState = EnemyState.IDLE;
-    private attackCooldown: number = 800; // milliseconds
+    private attackCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ATTACK_COOLDOWN;
     private lastAttackTime: number = 0;
     private isInvulnerable: boolean = false;
     private invulnerabilityDuration: number = 500; // milliseconds
@@ -36,12 +37,13 @@ export class Enemy extends Physics.Arcade.Sprite {
     private attackRange: number = 70;
     private isAttacking: boolean = false;
     private isBlocking: boolean = false;
+    private isWindingUp: boolean = false; // Telegraph phase before attack
     
     // AI behavior
     private detectionRange: number = 200;
     private blockChance: number = 0.3; // 30% chance to block when attacked
     private lastActionTime: number = 0;
-    private actionCooldown: number = 1000; // Time between AI actions
+    private actionCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ACTION_COOLDOWN;
     
     // UI Elements
     private healthBar: HealthBar;
@@ -139,7 +141,8 @@ export class Enemy extends Physics.Arcade.Sprite {
     private updateAI(playerX: number, playerY: number): void {
         if (this.currentState === EnemyState.ATTACKING || 
             this.currentState === EnemyState.HURT || 
-            this.currentState === EnemyState.BLOCKING) {
+            this.currentState === EnemyState.BLOCKING ||
+            this.isWindingUp) {
             return;
         }
         
@@ -155,7 +158,7 @@ export class Enemy extends Physics.Arcade.Sprite {
             if (distanceToPlayer <= this.attackRange) {
                 // Close enough to attack
                 if (this.canAttack()) {
-                    this.attack();
+                    this.startAttackWindup();
                     this.lastActionTime = currentTime;
                 }
             } else {
@@ -199,8 +202,8 @@ export class Enemy extends Physics.Arcade.Sprite {
                 this.isAttacking = true;
                 this.setVelocity(0, 0); // Stop movement during attack
                 
-                // End attack after animation
-                this.scene.time.delayedCall(400, () => {
+                // End attack after configured duration - gives more time to dodge
+                this.scene.time.delayedCall(GAME_CONFIG.ENEMY_COMBAT.ATTACK_DURATION, () => {
                     this.isAttacking = false;
                     this.setEnemyState(EnemyState.IDLE);
                 });
@@ -273,8 +276,21 @@ export class Enemy extends Physics.Arcade.Sprite {
         return currentTime - this.lastAttackTime >= this.attackCooldown;
     }
     
+    private startAttackWindup(): void {
+        this.isWindingUp = true;
+        this.setVelocity(0, 0); // Stop moving during windup
+        
+        console.log('Enemy winding up attack...');
+        
+        // Actual attack happens after configured telegraph delay
+        this.scene.time.delayedCall(GAME_CONFIG.ENEMY_COMBAT.ATTACK_WINDUP_TIME, () => {
+            this.isWindingUp = false;
+            this.attack();
+        });
+    }
+
     public attack(): void {
-        if (!this.canAttack()) return;
+        if (!this.canAttack() && !this.isWindingUp) return;
         
         this.lastAttackTime = this.scene.time.now;
         this.setEnemyState(EnemyState.ATTACKING);
@@ -282,6 +298,8 @@ export class Enemy extends Physics.Arcade.Sprite {
         // Create attack hitbox
         const attackX = this.flipX ? this.x - this.attackRange : this.x + this.attackRange;
         const attackY = this.y;
+        
+        console.log('Enemy attacking!');
         
         // Emit attack event
         this.emit('attack', {

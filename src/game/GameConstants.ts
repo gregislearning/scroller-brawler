@@ -83,6 +83,15 @@ export const GAME_CONFIG = {
         SPAWN_OFFSET_FROM_EDGE: 50 // Offset from top/bottom of walkable area
     },
     
+    // Enemy Combat Configuration
+    ENEMY_COMBAT: {
+        ATTACK_COOLDOWN: 2000, // Time between attacks (ms)
+        ACTION_COOLDOWN: 1500, // Time between AI decisions (ms)
+        ATTACK_WINDUP_TIME: 800, // Telegraph time before attack (ms)
+        ATTACK_DURATION: 600, // How long attack animation lasts (ms)
+        TELEGRAPH_TINT: 0xff6666 // Color enemy flashes during windup
+    },
+    
     // Player Leveling Configuration
     LEVELING: {
         BASE_EXPERIENCE_TO_LEVEL: 100, // XP needed for level 2
