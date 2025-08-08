@@ -82,6 +82,9 @@ export class Enemy extends Physics.Arcade.Sprite {
             borderColor: 0xffffff,
             borderWidth: 1
         });
+
+        // One-time spawn blink effect (2 seconds)
+        this.startSpawnBlink();
     }
     
     private createAnimations(): void {
@@ -91,7 +94,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_idle')) {
             animsManager.create({
                 key: 'samurai_idle',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 0, end: 1 }), // Row 1: frames 0-1 (2 columns)
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 0, end: 0 }), // Reduced range by 1 to avoid blank frame
                 frameRate: 4,
                 repeat: -1
             });
@@ -100,7 +103,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_blocking')) {
             animsManager.create({
                 key: 'samurai_blocking',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 5, end: 8 }), // Row 2: frames 5-8 (4 columns)
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 5, end: 7 }), // Reduced end bound by 1
                 frameRate: 8,
                 repeat: -1
             });
@@ -109,7 +112,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_attack')) {
             animsManager.create({
                 key: 'samurai_attack',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 10, end: 14 }), // Row 3: frames 10-14 (5 columns)
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 10, end: 13 }), // Reduced end bound by 1
                 frameRate: 12,
                 repeat: 0
             });
@@ -123,6 +126,23 @@ export class Enemy extends Physics.Arcade.Sprite {
                 repeat: 0
             });
         }
+    }
+
+    private startSpawnBlink(): void {
+        const singleBlinkDuration = 100; // ms down, then 100ms up due to yoyo
+        const totalBlinkDuration = 2000; // ms
+        const cycles = Math.floor(totalBlinkDuration / (singleBlinkDuration * 2));
+        const repeatCount = Math.max(0, cycles - 1); // repeats are additional cycles beyond the first
+        this.scene.tweens.add({
+            targets: this,
+            alpha: 0.2,
+            duration: singleBlinkDuration,
+            yoyo: true,
+            repeat: repeatCount,
+            onComplete: () => {
+                this.setAlpha(1);
+            }
+        });
     }
     
     public update(playerX: number, playerY: number): void {

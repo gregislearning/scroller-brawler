@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS } from './GameConstants';
+import { GAME_CONFIG, FOREST_CONFIG } from './GameConstants';
 
 export interface ParallaxLayer {
     name: string;
@@ -18,11 +18,10 @@ export class ParallaxBackground {
     private layerConfigs: ParallaxLayer[] = [];
     private worldWidth: number;
     private worldHeight: number;
-    private camera: Phaser.Cameras.Scene2D.Camera;
+    // Camera parameter kept in constructor for API compatibility, but not stored
     
-    constructor(scene: Scene, camera: Phaser.Cameras.Scene2D.Camera, worldWidth: number, worldHeight: number) {
+    constructor(scene: Scene, _camera: Phaser.Cameras.Scene2D.Camera, worldWidth: number, worldHeight: number) {
         this.scene = scene;
-        this.camera = camera;
         this.worldWidth = worldWidth;
         this.worldHeight = worldHeight;
     }
@@ -32,42 +31,29 @@ export class ParallaxBackground {
         
         // Get the texture to determine its actual dimensions
         const texture = this.scene.textures.get(config.texture);
-        const textureWidth = texture.source[0].width;
+        // Width available if needed for future tile scale tuning
         const textureHeight = texture.source[0].height;
         
-        // Special handling for ground layer (bottom 50% of screen) - HARD CODED
+        // Special handling for ground layer (bottom 50% of screen)
         if (config.name === 'forest_ground') {
-            console.log('Creating forest ground layer...');
-            console.log('Front texture dimensions:', textureWidth, 'x', textureHeight);
-            
+            // Create a tilesprite that exactly covers the ground area
             const layer = this.scene.add.tileSprite(
-                0,          // X position
-                384,        // Y position - bottom half of screen
-                3000,       // Width - world width
-                384,        // Height - full bottom half (50% of 768px)
+                0,                                // X position (left edge)
+                GAME_CONFIG.GROUND_START_Y,       // Y position (top of ground section)
+                GAME_CONFIG.WORLD_WIDTH,          // Full world width
+                GAME_CONFIG.GROUND_HEIGHT,        // Exactly half the screen height
                 config.texture
             );
-            
+
             layer.setOrigin(0, 0);
-            
-            // Scale to make the front image fill the height properly
-            const scaleX = 1;  // Normal horizontal scaling
-            const scaleY = 384 / textureHeight;  // Scale to fill 384px height exactly
-            
-            console.log('Calculated scaleY:', scaleY, '(to fill 384px from', textureHeight, 'px)');
-            
-            layer.setScale(scaleX, scaleY);
-            layer.setAlpha(1.0);
-            layer.setDepth(10);
-            layer.setScrollFactor(1.0, 1);
-            
-            console.log('Ground layer created:');
-            console.log('- Position:', layer.x, layer.y);
-            console.log('- Original texture size:', textureWidth, 'x', textureHeight);
-            console.log('- TileSprite size:', layer.width, 'x', layer.height);
-            console.log('- Scale applied:', layer.scaleX, 'x', layer.scaleY);
-            console.log('- Final rendered size:', layer.width * layer.scaleX, 'x', layer.height * layer.scaleY);
-            
+
+            // Do not scale the display size; keep the area exactly half-height.
+            // If we ever want to change the texture density, use setTileScale instead of setScale.
+
+            layer.setAlpha(config.alpha);
+            layer.setDepth(config.depth);
+            layer.setScrollFactor(config.scrollFactor, 1);
+
             this.layers.push(layer);
             return;
         }
