@@ -30,9 +30,9 @@ export class Game extends Scene
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(FOREST_CONFIG.BACKGROUND_COLOR);
 
-        // Create parallax background system (layers disabled temporarily)
+        // Create parallax background system: render only sky layers above the black line
         this.parallaxBackground = new ParallaxBackground(this, this.cameras.main, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.WORLD_HEIGHT);
-        // this.parallaxBackground.setupForestLayers();
+        this.parallaxBackground.setupForestSkyLayers();
 
         // Enable physics with extended world bounds - walkable area is ground level
         this.physics.world.setBounds(0, GAME_CONFIG.PHYSICS_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.PHYSICS_HEIGHT);

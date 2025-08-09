@@ -10,6 +10,7 @@ export interface ParallaxLayer {
     tint?: number;           // Optional color tint for variety
     offsetY: number;         // Vertical offset for positioning
     depth: number;           // Render depth (lower = behind)
+    targetHeight?: number;   // Optional target height for this layer; defaults to full world height
 }
 
 export class ParallaxBackground {
@@ -58,7 +59,7 @@ export class ParallaxBackground {
             return;
         }
         
-        // Regular background layers (full screen)
+        // Regular background layers (full screen or sky-only depending on config)
         const layer = this.scene.add.tileSprite(
             0, 
             config.offsetY, 
@@ -70,8 +71,9 @@ export class ParallaxBackground {
         // Configure layer properties
         layer.setOrigin(0, 0);
         
-        // Scale to fill screen height while maintaining aspect ratio
-        const scaleY = this.worldHeight / textureHeight;
+        // Scale to fill target height while maintaining aspect ratio
+        const targetHeight = config.targetHeight ?? this.worldHeight;
+        const scaleY = targetHeight / textureHeight;
         layer.setScale(config.scale, scaleY * config.scale);
         
         layer.setAlpha(config.alpha);
@@ -162,6 +164,31 @@ export class ParallaxBackground {
         });
         
         // The main game layer (player, enemies) will render at depth 100+
+    }
+
+    // Render only the far and middle forest layers scaled to the sky height
+    public setupForestSkyLayers(): void {
+        this.addLayer({
+            name: 'forest_far_background',
+            texture: FOREST_CONFIG.LAYERS.FAR.TEXTURE,
+            scrollFactor: FOREST_CONFIG.LAYERS.FAR.SCROLL_FACTOR,
+            scale: 1.0,
+            alpha: FOREST_CONFIG.LAYERS.FAR.ALPHA,
+            offsetY: 0,
+            depth: FOREST_CONFIG.LAYERS.FAR.DEPTH,
+            targetHeight: GAME_CONFIG.SKY_HEIGHT
+        });
+
+        this.addLayer({
+            name: 'forest_middle_background',
+            texture: FOREST_CONFIG.LAYERS.MIDDLE.TEXTURE,
+            scrollFactor: FOREST_CONFIG.LAYERS.MIDDLE.SCROLL_FACTOR,
+            scale: 1.0,
+            alpha: FOREST_CONFIG.LAYERS.MIDDLE.ALPHA,
+            offsetY: 0,
+            depth: FOREST_CONFIG.LAYERS.MIDDLE.DEPTH,
+            targetHeight: GAME_CONFIG.SKY_HEIGHT
+        });
     }
     
     public update(): void {
