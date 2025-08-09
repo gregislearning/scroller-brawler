@@ -37,6 +37,19 @@ export class Game extends Scene
         // Enable physics with extended world bounds - walkable area is ground level
         this.physics.world.setBounds(0, GAME_CONFIG.PHYSICS_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.PHYSICS_HEIGHT);
 
+        // Draw a vertical gradient over the walkable ground area (top: forest green, bottom: lighter green)
+        const groundGradient = this.add.graphics();
+        groundGradient.fillGradientStyle(
+            0x2f3a15, // darker top-left
+            0x2f3a15, // darker top-right
+            0x5f7f3a, // muted bottom-left
+            0x5f7f3a, // muted bottom-right
+            1, 1, 1, 1
+        );
+        groundGradient.fillRect(0, GAME_CONFIG.GROUND_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.GROUND_HEIGHT);
+        groundGradient.setScrollFactor(1, 1);
+        groundGradient.setDepth(DEPTH_LAYERS.ENVIRONMENT_MIDDLE); // Behind the black line and player
+
         // Visual marker for the top edge of the walkable area
         const walkableTopLine = this.add.graphics();
         walkableTopLine.fillStyle(0x000000, 1);
