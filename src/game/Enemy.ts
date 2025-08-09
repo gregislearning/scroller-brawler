@@ -44,6 +44,7 @@ export class Enemy extends Physics.Arcade.Sprite {
     private blockChance: number = 0.3; // 30% chance to block when attacked
     private lastActionTime: number = 0;
     private actionCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ACTION_COOLDOWN;
+    private verticalAttackTolerance: number = 28; // Max vertical offset to attempt a swing
     
     // UI Elements
     private healthBar: HealthBar;
@@ -170,6 +171,10 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
         
         const distanceToPlayer = Phaser.Math.Distance.Between(this.x, this.y, playerX, playerY);
+        const dx = playerX - this.x;
+        const dy = playerY - this.y;
+        const horizontallyInRange = Math.abs(dx) <= this.attackRange;
+        const verticallyAligned = Math.abs(dy) <= this.verticalAttackTolerance;
         const currentTime = this.scene.time.now;
         
         // Only take actions every actionCooldown milliseconds
@@ -178,15 +183,15 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
         
         if (distanceToPlayer <= this.detectionRange) {
-            if (distanceToPlayer <= this.attackRange) {
-                // Close enough to attack
+            // Only attack when horizontally in range AND vertically aligned
+            if (horizontallyInRange && verticallyAligned) {
                 if (this.canAttack()) {
                     this.startAttackWindup();
                     this.lastActionTime = currentTime;
                 }
             } else {
-                // Move towards player
-                this.moveTowardsPlayer(playerX, playerY);
+                // Reposition to align for a meaningful hit
+                this.repositionForAttack(playerX, playerY, dx, dy, horizontallyInRange, verticallyAligned);
                 this.setEnemyState(EnemyState.WALKING);
             }
         } else {
@@ -212,6 +217,27 @@ export class Enemy extends Physics.Arcade.Sprite {
     private updateFacing(playerX: number): void {
         // Face left if the player is to the left of the enemy, otherwise face right
         this.setFlipX(playerX < this.x);
+    }
+
+    private repositionForAttack(
+        playerX: number,
+        playerY: number,
+        dx: number,
+        dy: number,
+        horizontallyInRange: boolean,
+        verticallyAligned: boolean
+    ): void {
+        // Prioritize vertical alignment if horizontal is already good, else close horizontal gap
+        if (horizontallyInRange && !verticallyAligned) {
+            const vy = Math.sign(dy) * this.speed;
+            this.setVelocity(0, vy);
+        } else if (!horizontallyInRange && verticallyAligned) {
+            const vx = Math.sign(dx) * this.speed;
+            this.setVelocity(vx, 0);
+        } else {
+            // Not aligned on either axis: move towards player normally
+            this.moveTowardsPlayer(playerX, playerY);
+        }
     }
     
     private setEnemyState(newState: EnemyState): void {
@@ -320,6 +346,17 @@ export class Enemy extends Physics.Arcade.Sprite {
         this.lastAttackTime = this.scene.time.now;
         this.setEnemyState(EnemyState.ATTACKING);
         
+        // Ensure we are still aligned at the moment of strike; if not, cancel and reposition
+        const player = (this.scene as any).player as any | undefined;
+        if (player) {
+            const dy = player.y - this.y;
+            if (Math.abs(dy) > this.verticalAttackTolerance) {
+                // Cancel swing if out of vertical alignment
+                this.setEnemyState(EnemyState.WALKING);
+                return;
+            }
+        }
+
         // Create attack hitbox
         const attackX = this.flipX ? this.x - this.attackRange : this.x + this.attackRange;
         const attackY = this.y;
