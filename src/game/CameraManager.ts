@@ -32,9 +32,10 @@ export class CameraManager {
     // Camera state
     private targetX: number = 0;
     private targetY: number = 0;
-    private lastPlayerDirection: number = 1; // 1 for right, -1 for left
+    // private lastPlayerDirection: number = 1; // 1 for right, -1 for left (unused for forward-lock)
     private isPlayerMoving: boolean = false;
     private idleTimer: number = 0;
+    private maxCameraCenterX: number = 0; // Forward-only: never allow camera to go behind this
     
     // Deadzone bounds (relative to camera center)
     private deadzone: {
@@ -79,6 +80,7 @@ export class CameraManager {
         
         // Set initial camera position
         this.camera.centerOn(this.targetX, this.targetY);
+        this.maxCameraCenterX = this.camera.worldView.centerX;
     }
     
     private calculateDeadzone(): void {
@@ -102,7 +104,7 @@ export class CameraManager {
         });
     }
     
-    public update(deltaTime: number): void {
+    public update(): void {
         this.updatePlayerMovementState();
         this.updateTargetPosition();
         this.applyCameraMovement();
@@ -116,9 +118,7 @@ export class CameraManager {
         this.isPlayerMoving = Math.abs(velocity.x) > 10 || Math.abs(velocity.y) > 10;
         
         // Update direction when moving horizontally
-        if (Math.abs(velocity.x) > 10) {
-            this.lastPlayerDirection = velocity.x > 0 ? 1 : -1;
-        }
+        // Direction tracking disabled (forward lock)
         
         // Reset idle timer when movement starts
         if (!wasMoving && this.isPlayerMoving) {
@@ -191,6 +191,9 @@ export class CameraManager {
             halfScreenHeight,
             this.config.worldHeight - halfScreenHeight
         );
+
+        // Forward-only camera: never target behind the furthest camera center reached
+        this.targetX = Math.max(this.targetX, this.maxCameraCenterX);
     }
     
     private applyCameraMovement(): void {
@@ -201,11 +204,19 @@ export class CameraManager {
         const speed = this.isPlayerMoving ? this.config.followSpeed : this.config.returnSpeed;
         
         // Smoothly interpolate to target position
-        const newX = PhaserMath.Linear(currentX, this.targetX, speed);
+        let newX = PhaserMath.Linear(currentX, this.targetX, speed);
         const newY = PhaserMath.Linear(currentY, this.targetY, speed);
         
+        // Prevent backward movement: clamp to furthest center reached
+        if (newX < this.maxCameraCenterX) {
+            newX = this.maxCameraCenterX;
+        }
+
         // Apply the camera movement
         this.camera.centerOn(newX, newY);
+
+        // Update forward progress tracker
+        this.maxCameraCenterX = Math.max(this.maxCameraCenterX, newX);
     }
     
     public shakeCamera(duration: number = 100, intensity: number = 0.01): void {

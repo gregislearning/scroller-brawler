@@ -30,12 +30,32 @@ export class Game extends Scene
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(FOREST_CONFIG.BACKGROUND_COLOR);
 
-        // Create parallax background system with forest layers
+        // Create parallax background system: render only sky layers above the black line
         this.parallaxBackground = new ParallaxBackground(this, this.cameras.main, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.WORLD_HEIGHT);
-        this.parallaxBackground.setupForestLayers();
+        this.parallaxBackground.setupForestSkyLayers();
 
         // Enable physics with extended world bounds - walkable area is ground level
         this.physics.world.setBounds(0, GAME_CONFIG.PHYSICS_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.PHYSICS_HEIGHT);
+
+        // Draw a vertical gradient over the walkable ground area (top: forest green, bottom: lighter green)
+        const groundGradient = this.add.graphics();
+        groundGradient.fillGradientStyle(
+            0x2f3a15, // darker top-left
+            0x2f3a15, // darker top-right
+            0x5f7f3a, // muted bottom-left
+            0x5f7f3a, // muted bottom-right
+            1, 1, 1, 1
+        );
+        groundGradient.fillRect(0, GAME_CONFIG.GROUND_START_Y, GAME_CONFIG.WORLD_WIDTH, GAME_CONFIG.GROUND_HEIGHT);
+        groundGradient.setScrollFactor(1, 1);
+        groundGradient.setDepth(DEPTH_LAYERS.ENVIRONMENT_MIDDLE); // Behind the black line and player
+
+        // Visual marker for the top edge of the walkable area
+        const walkableTopLine = this.add.graphics();
+        walkableTopLine.fillStyle(0x000000, 1);
+        walkableTopLine.fillRect(0, GAME_CONFIG.GROUND_START_Y - 1, GAME_CONFIG.WORLD_WIDTH, 2);
+        walkableTopLine.setScrollFactor(1, 1);
+        walkableTopLine.setDepth(DEPTH_LAYERS.ENVIRONMENT_GROUND);
 
         // Create player with character spritesheet
         this.player = new Player({
@@ -286,10 +306,20 @@ export class Game extends Scene
         }
         
         // Update advanced camera system
-        this.cameraManager.update(this.time.now);
+        this.cameraManager.update();
         
         // Update parallax background system
         this.parallaxBackground.update();
+
+        // Enforce forward-only walking area: don't allow player to move left of the camera view
+        const cameraLeftEdge = this.cameras.main.worldView.left;
+        const minPlayerX = cameraLeftEdge + 8; // small margin to avoid clipping
+        if (this.player.x < minPlayerX) {
+            this.player.x = minPlayerX;
+            if (this.player.body) {
+                this.player.body.velocity.x = Math.max(0, this.player.body.velocity.x);
+            }
+        }
 
         // Update debug text with level progress, camera, and enemy info
         const levelProgress = Math.round((this.player.x / 3000) * 100);
