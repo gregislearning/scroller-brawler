@@ -150,6 +150,9 @@ export class Enemy extends Physics.Arcade.Sprite {
             return;
         }
         
+        // Always face the player before any AI/action so attacks point the right way
+        this.updateFacing(playerX);
+
         this.updateAI(playerX, playerY);
         this.updateState();
         this.updateAnimations();
@@ -203,10 +206,12 @@ export class Enemy extends Physics.Arcade.Sprite {
             const normalizedY = directionY / distance;
             
             this.setVelocity(normalizedX * this.speed, normalizedY * this.speed);
-            
-            // Flip sprite based on movement direction
-            this.setFlipX(directionX < 0);
         }
+    }
+
+    private updateFacing(playerX: number): void {
+        // Face left if the player is to the left of the enemy, otherwise face right
+        this.setFlipX(playerX < this.x);
     }
     
     private setEnemyState(newState: EnemyState): void {
