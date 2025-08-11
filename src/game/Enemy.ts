@@ -93,10 +93,14 @@ export class Enemy extends Physics.Arcade.Sprite {
         
         // Only create animations if they don't already exist
         if (!animsManager.exists('samurai_idle')) {
+            // Use trimmed custom frames added in Preloader to prevent bleeding from the row below
             animsManager.create({
                 key: 'samurai_idle',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 0, end: 0 }), // Reduced range by 1 to avoid blank frame
-                frameRate: 4,
+                frames: [
+                    { key: this.texture.key, frame: 'idle_fix_0' as any },
+                    { key: this.texture.key, frame: 'idle_fix_1' as any }
+                ],
+                duration: 1000,
                 repeat: -1
             });
         }
@@ -104,7 +108,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_blocking')) {
             animsManager.create({
                 key: 'samurai_blocking',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 5, end: 7 }), // Reduced end bound by 1
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 3, end: 5 }),
                 frameRate: 8,
                 repeat: -1
             });
@@ -113,8 +117,8 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_attack')) {
             animsManager.create({
                 key: 'samurai_attack',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 10, end: 13 }), // Reduced end bound by 1
-                frameRate: 12,
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 6, end: 8 }),
+                frameRate: 10,
                 repeat: 0
             });
         }
@@ -122,7 +126,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (!animsManager.exists('samurai_hurt')) {
             animsManager.create({
                 key: 'samurai_hurt',
-                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 1, end: 1 }), // Use idle frame for hurt
+                frames: animsManager.generateFrameNumbers(this.texture.key, { start: 9, end: 9 }),
                 frameRate: 8,
                 repeat: 0
             });

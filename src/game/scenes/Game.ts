@@ -166,8 +166,12 @@ export class Game extends Scene
             texture: 'samurai_enemy'
         });
 
-        // Scale enemy using same scale as player for consistency
-        this.enemy.setScale(GAME_CONFIG.PLAYER_SCALE);
+        // Scale enemy to match player display height so large spritesheets don't dominate
+        const baseEnemyHeight = this.enemy.height;
+        if (baseEnemyHeight > 0) {
+            const scaleToPlayer = this.player.displayHeight / baseEnemyHeight;
+            this.enemy.setScale(scaleToPlayer);
+        }
         
         // Set enemy depth to render alongside player
         this.enemy.setDepth(DEPTH_LAYERS.PLAYER);

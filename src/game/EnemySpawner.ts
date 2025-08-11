@@ -89,8 +89,13 @@ export class EnemySpawner {
             texture: 'samurai_enemy'
         });
         
-        // Scale enemy using same scale as player for consistency
-        enemy.setScale(GAME_CONFIG.PLAYER_SCALE);
+        // Scale enemy to match player display height for consistency
+        const desiredDisplayHeight = this.player.displayHeight;
+        const enemyBaseHeight = enemy.height; // natural frame height before scaling
+        if (enemyBaseHeight > 0) {
+            const scale = desiredDisplayHeight / enemyBaseHeight;
+            enemy.setScale(scale);
+        }
         
         // Set enemy depth to render alongside player
         enemy.setDepth(100); // Same as player depth
