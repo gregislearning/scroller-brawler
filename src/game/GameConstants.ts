@@ -72,7 +72,14 @@ export const GAME_CONFIG = {
             PLAYER_HUD_Y: 60,
             PLAYER_HUD_WIDTH: 200,
             PLAYER_HUD_HEIGHT: 15
-        }
+    },
+    INVENTORY: {
+      HOTBAR_SLOTS: 6,
+      HOTBAR_SLOT_SIZE: 44,
+      HOTBAR_SLOT_GAP: 8,
+      get HOTBAR_X() { return 16; }, // bottom-left corner padding
+      get HOTBAR_Y() { return GAME_CONFIG.SCREEN_HEIGHT - 16; }, // bottom padding
+    }
     },
     
     // Enemy Spawning Configuration

@@ -7,6 +7,10 @@ import { HealthBar } from '../HealthBar';
 import { ExperienceBar } from '../ExperienceBar';
 import { EnemySpawner } from '../EnemySpawner';
 import { GAME_CONFIG, FOREST_CONFIG, DEPTH_LAYERS, CALCULATED_VALUES } from '../GameConstants';
+import { Inventory } from '../inventory/Inventory';
+import { InventoryUI } from '../inventory/InventoryUI';
+import { InventoryController } from '../inventory/InventoryController';
+import { ItemRegistry, ItemDefinition, PotionUseEffect } from '../items/ItemTypes';
 
 export class Game extends Scene
 {
@@ -16,9 +20,12 @@ export class Game extends Scene
     enemy: Enemy; // Keep for backwards compatibility, but will be removed
     enemySpawner: EnemySpawner;
     cameraManager: CameraManager;
-    debugText: Phaser.GameObjects.Text;
+    debugText?: Phaser.GameObjects.Text;
     playerHUD: HealthBar;
     playerExperienceBar: ExperienceBar;
+    inventory: Inventory;
+    inventoryUI: InventoryUI;
+    inventoryController: InventoryController;
 
     constructor ()
     {
@@ -152,7 +159,7 @@ export class Game extends Scene
             scene: this,
             player: this.player,
             maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES,
-            onEnemyKilled: (enemy: Enemy) => {
+            onEnemyKilled: (_enemy: Enemy) => {
                 // Award experience to player when spawned enemies die
                 this.player.gainExperience(GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY);
             }
@@ -185,15 +192,18 @@ export class Game extends Scene
         // Set up combat system that works with both single enemy and spawned enemies
         this.setupCombatSystem();
 
-        // Debug text for player state and health (bottom of screen, follows camera)
-        this.debugText = this.add.text(16, GAME_CONFIG.DEBUG.DEBUG_TEXT_Y, '', {
-            fontSize: `${GAME_CONFIG.DEBUG.DEBUG_TEXT_SIZE}px`,
-            color: '#ffffff',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            padding: GAME_CONFIG.DEBUG.DEBUG_TEXT_PADDING
-        });
-        this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
-        this.debugText.setDepth(DEPTH_LAYERS.UI_DEBUG); // Always on top
+        // Debug text (bottom-left) is enabled only when VITE_SHOW_DEBUG is truthy
+        const showDebug = !!import.meta.env.VITE_SHOW_DEBUG;
+        if (showDebug) {
+            this.debugText = this.add.text(16, GAME_CONFIG.DEBUG.DEBUG_TEXT_Y, '', {
+                fontSize: `${GAME_CONFIG.DEBUG.DEBUG_TEXT_SIZE}px`,
+                color: '#ffffff',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: GAME_CONFIG.DEBUG.DEBUG_TEXT_PADDING
+            });
+            this.debugText.setScrollFactor(0); // Fixed to camera, doesn't scroll with world
+            this.debugText.setDepth(DEPTH_LAYERS.UI_DEBUG); // Always on top
+        }
 
         // Initialize advanced camera system with configured values
         this.cameraManager = new CameraManager(this, this.cameras.main, this.player, {
@@ -215,6 +225,109 @@ export class Game extends Scene
             stroke: '#000000', strokeThickness: 4,
             align: 'center'
         }).setOrigin(0.5).setDepth(DEPTH_LAYERS.UI_TEXT); // Render above everything
+
+        // Inventory system: model, UI, controller
+        this.inventory = new Inventory({ size: GAME_CONFIG.UI.INVENTORY.HOTBAR_SLOTS });
+        this.inventoryUI = new InventoryUI(this, this.inventory, {
+            x: GAME_CONFIG.UI.INVENTORY.HOTBAR_X,
+            y: GAME_CONFIG.UI.INVENTORY.HOTBAR_Y,
+            slotSize: GAME_CONFIG.UI.INVENTORY.HOTBAR_SLOT_SIZE,
+            slotGap: GAME_CONFIG.UI.INVENTORY.HOTBAR_SLOT_GAP,
+        });
+        this.inventoryController = new InventoryController(this, this.inventory);
+
+        // Hook controller intents; using scene events so other systems can react
+        this.events.on('inventory:use', (slotIndex: number) => {
+            const id = this.inventory.getAt(slotIndex);
+            if (!id) return;
+            // Actual use behavior will be implemented in next step
+            const def = ItemRegistry.get(id);
+            if (def.category === 'potion' && def.potionUse) {
+                this.consumePotion(slotIndex, def.potionUse);
+            } else {
+                console.log('[Inventory] Item in slot is not consumable:', slotIndex, id);
+            }
+        });
+        this.events.on('inventory:drop', (slotIndex: number) => {
+            const id = this.inventory.getAt(slotIndex);
+            if (!id) return;
+            // Actual drop behavior will be implemented when world drops are added
+            console.log('[Inventory] Drop slot', slotIndex, id);
+        });
+
+        // Apply/remove permanent modifiers when inventory changes
+        this.inventory.on('add', ({ itemId }: { slotIndex: number; itemId: string }) => {
+            const def = ItemRegistry.get(itemId as any);
+            if (def.category === 'item') {
+                this.applyPermanentItem(def);
+            }
+        });
+        this.inventory.on('remove', ({ itemId }: { slotIndex: number; itemId: string }) => {
+            const def = ItemRegistry.get(itemId as any);
+            if (def.category === 'item') {
+                this.removePermanentItem(def);
+            }
+        });
+    }
+
+    private applyPermanentItem(definition: ItemDefinition): void {
+        if (!definition.permanentModifiers) return;
+        for (const mod of definition.permanentModifiers) {
+            this.adjustPlayerStat(mod.stat, mod.amount);
+        }
+        // Reflect any max health changes on HUD
+        this.playerHUD.updateHealth(this.player.currentHealth, this.player.maxHealth);
+    }
+
+    private removePermanentItem(definition: ItemDefinition): void {
+        if (!definition.permanentModifiers) return;
+        for (const mod of definition.permanentModifiers) {
+            this.adjustPlayerStat(mod.stat, -mod.amount);
+        }
+        // Clamp health if max reduced
+        if (this.player.currentHealth > this.player.maxHealth) {
+            this.player.currentHealth = this.player.maxHealth;
+        }
+        this.playerHUD.updateHealth(this.player.currentHealth, this.player.maxHealth);
+    }
+
+    private consumePotion(slotIndex: number, effect: PotionUseEffect): void {
+        if (effect.kind === 'heal') {
+            this.player.heal(effect.amount);
+            this.playerHUD.updateHealth(this.player.currentHealth, this.player.maxHealth);
+            this.inventory.removeAt(slotIndex);
+            return;
+        }
+
+        if (effect.kind === 'timedBuff') {
+            // Apply then schedule revert
+            this.adjustPlayerStat(effect.modifier.stat, effect.modifier.amount);
+            this.time.delayedCall(effect.durationMs, () => {
+                this.adjustPlayerStat(effect.modifier.stat, -effect.modifier.amount);
+                // If speed changed during buff, nothing else special to do
+            });
+            this.inventory.removeAt(slotIndex);
+            return;
+        }
+    }
+
+    private adjustPlayerStat(stat: 'attackDamage' | 'maxHealth' | 'speed', delta: number): void {
+        switch (stat) {
+            case 'attackDamage':
+                this.player.attackDamage = Math.max(0, this.player.attackDamage + delta);
+                break;
+            case 'maxHealth': {
+                const newMax = Math.max(1, this.player.maxHealth + delta);
+                const ratio = this.player.currentHealth / this.player.maxHealth;
+                this.player.maxHealth = newMax;
+                // Keep proportional current health when increasing; clamp when decreasing
+                this.player.currentHealth = Math.min(newMax, Math.max(0, Math.round(newMax * ratio)));
+                break;
+            }
+            case 'speed':
+                this.player.speed = Math.max(0, this.player.speed + delta);
+                break;
+        }
     }
 
     private setupCombatSystem(): void {
@@ -320,25 +433,27 @@ export class Game extends Scene
             }
         }
 
-        // Update debug text with level progress, camera, and enemy info
-        const levelProgress = Math.round((this.player.x / 3000) * 100);
-        const cameraX = Math.round(this.cameras.main.worldView.centerX);
-        const cameraY = Math.round(this.cameras.main.worldView.centerY);
-        const velocity = this.player.body!.velocity;
-        const layerCount = this.parallaxBackground.getAllLayerConfigs().length;
-        
-        const enemyHealth = this.enemy && this.enemy.active ? this.enemy.getHealth() : { current: 0, max: 0 };
-        const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
-        const spawnedEnemyCount = this.enemySpawner.getEnemyCount();
-        const playerLevelInfo = this.player.getLevelInfo();
-        
-        this.debugText.setText([
-            `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
-            `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
-            `Player - Level: ${playerLevelInfo.level} | XP: ${playerLevelInfo.experience}/${playerLevelInfo.experienceToNext} (${playerLevelInfo.experienceProgress}%)`,
-            `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth} | ATK: ${this.player.attackDamage}`,
-            `Original Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
-            `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`
-        ]);
+        // Update debug text if enabled
+        if (this.debugText) {
+            const levelProgress = Math.round((this.player.x / 3000) * 100);
+            const cameraX = Math.round(this.cameras.main.worldView.centerX);
+            const cameraY = Math.round(this.cameras.main.worldView.centerY);
+            const velocity = this.player.body!.velocity;
+            const layerCount = this.parallaxBackground.getAllLayerConfigs().length;
+            
+            const enemyHealth = this.enemy && this.enemy.active ? this.enemy.getHealth() : { current: 0, max: 0 };
+            const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
+            const spawnedEnemyCount = this.enemySpawner.getEnemyCount();
+            const playerLevelInfo = this.player.getLevelInfo();
+            
+            this.debugText.setText([
+                `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
+                `Level Progress: ${levelProgress}% | Velocity: (${Math.round(velocity.x)}, ${Math.round(velocity.y)})`,
+                `Player - Level: ${playerLevelInfo.level} | XP: ${playerLevelInfo.experience}/${playerLevelInfo.experienceToNext} (${playerLevelInfo.experienceProgress}%)`,
+                `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth} | ATK: ${this.player.attackDamage}`,
+                `Original Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
+                `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`
+            ]);
+        }
     }
 }
