@@ -8,6 +8,7 @@ export interface EnemyConfig {
     y: number;
     texture: string;
     frame?: string | number;
+    level?: number;
 }
 
 export enum EnemyState {
@@ -20,11 +21,17 @@ export enum EnemyState {
 }
 
 export class Enemy extends Physics.Arcade.Sprite {
-    // Enemy stats
+    // Enemy level and stats
+    public level: number = 1;
     public maxHealth: number = 80;
     public currentHealth: number = 80;
     public attackDamage: number = 15;
     public speed: number = 100;
+    
+    // Base stats for scaling calculations
+    private baseMaxHealth: number = 80;
+    private baseAttackDamage: number = 15;
+    private baseSpeed: number = 100;
     
     // State management
     private currentState: EnemyState = EnemyState.IDLE;
@@ -41,7 +48,6 @@ export class Enemy extends Physics.Arcade.Sprite {
     
     // AI behavior
     private detectionRange: number = 200;
-    private blockChance: number = 0.3; // 30% chance to block when attacked
     private lastActionTime: number = 0;
     private actionCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ACTION_COOLDOWN;
     private verticalAttackTolerance: number = 28; // Max vertical offset to attempt a swing
@@ -51,6 +57,10 @@ export class Enemy extends Physics.Arcade.Sprite {
     
     constructor(config: EnemyConfig) {
         super(config.scene, config.x, config.y, config.texture, config.frame);
+        
+        // Set level and scale stats
+        this.level = config.level || 1;
+        this.scaleStatsForLevel();
         
         // Add to scene and enable physics
         this.scene.add.existing(this as any);
@@ -86,6 +96,47 @@ export class Enemy extends Physics.Arcade.Sprite {
 
         // One-time spawn blink effect (2 seconds)
         this.startSpawnBlink();
+        
+        // Add level indicator if level > 1
+        this.createLevelIndicator();
+    }
+    
+    private scaleStatsForLevel(): void {
+        // Level scaling: each level increases stats significantly
+        const levelMultiplier = 1 + (this.level - 1) * 0.5; // +50% per level
+        const difficultyMultiplier = 1 + (this.level - 1) * 0.2; // +20% damage/speed per level
+        
+        this.maxHealth = Math.floor(this.baseMaxHealth * levelMultiplier);
+        this.currentHealth = this.maxHealth;
+        this.attackDamage = Math.floor(this.baseAttackDamage * difficultyMultiplier);
+        this.speed = Math.floor(this.baseSpeed * (1 + (this.level - 1) * 0.1)); // +10% speed per level
+        
+        console.log(`Level ${this.level} enemy created: HP=${this.maxHealth}, ATK=${this.attackDamage}, SPD=${this.speed}`);
+    }
+    
+    private createLevelIndicator(): void {
+        if (this.level <= 1) return;
+        
+        // Create a level indicator text above the enemy
+        const levelText = this.scene.add.text(this.x, this.y - 80, `Lv.${this.level}`, {
+            fontSize: '12px',
+            color: this.level >= 5 ? '#ff4444' : this.level >= 3 ? '#ffaa44' : '#ffffff',
+            fontFamily: 'Arial',
+            stroke: '#000000',
+            strokeThickness: 2
+        });
+        
+        levelText.setOrigin(0.5);
+        levelText.setDepth(200);
+        
+        // Make the level indicator follow the enemy
+        this.scene.tweens.add({
+            targets: levelText,
+            alpha: 0,
+            duration: 3000, // Fade out after 3 seconds
+            ease: 'Power2',
+            onComplete: () => levelText.destroy()
+        });
     }
     
     private createAnimations(): void {
@@ -443,5 +494,21 @@ export class Enemy extends Physics.Arcade.Sprite {
     
     public getHealth(): { current: number; max: number } {
         return { current: this.currentHealth, max: this.maxHealth };
+    }
+    
+    public getLevel(): number {
+        return this.level;
+    }
+    
+    public getExperienceReward(): number {
+        // Base XP * level multiplier
+        const baseXP = GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY;
+        return Math.floor(baseXP * (1 + (this.level - 1) * 0.3)); // +30% XP per enemy level
+    }
+    
+    public getItemDropChance(): number {
+        // Higher level enemies have better drop rates
+        const baseDropChance = 0.15; // 15% base drop chance
+        return Math.min(0.8, baseDropChance + (this.level - 1) * 0.1); // +10% per level, capped at 80%
     }
 } 

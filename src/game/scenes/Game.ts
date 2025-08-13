@@ -160,8 +160,8 @@ export class Game extends Scene
             player: this.player,
             maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES,
             onEnemyKilled: (_enemy: Enemy) => {
-                // Award experience to player when spawned enemies die
-                this.player.gainExperience(GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY);
+                // Additional logic for when enemies die (experience is handled in spawner now)
+                console.log('Enemy killed - additional cleanup or effects can go here');
             }
         });
 
@@ -170,7 +170,8 @@ export class Game extends Scene
             scene: this,
             x: GAME_CONFIG.PLAYER_START_X + 300, // Start 300 pixels to the right of player
             y: GAME_CONFIG.PLAYER_START_Y,
-            texture: 'samurai_enemy'
+            texture: 'samurai_enemy',
+            level: 2 // Make the original enemy level 2 for testing
         });
 
         // Scale enemy to match player display height so large spritesheets don't dominate
@@ -341,9 +342,14 @@ export class Game extends Scene
         });
 
         this.enemy.on('death', () => {
-            console.log('Enemy defeated!');
-            // Award experience to player
-            this.player.gainExperience(GAME_CONFIG.LEVELING.ENEMY_EXPERIENCE_VALUES.BASIC_ENEMY);
+            console.log(`Level ${this.enemy.getLevel()} enemy defeated!`);
+            // Award level-based experience to player
+            const xpReward = this.enemy.getExperienceReward();
+            this.player.gainExperience(xpReward);
+            console.log(`Player gained ${xpReward} XP from level ${this.enemy.getLevel()} enemy`);
+            
+            // Handle item drops for original enemy too
+            this.handleOriginalEnemyItemDrop(this.enemy);
         });
 
         // Set up player attack system that works with all enemies
@@ -389,6 +395,48 @@ export class Game extends Scene
                 enemy.takeDamage(attackData.damage);
             }
         }
+    }
+
+    private handleOriginalEnemyItemDrop(enemy: Enemy): void {
+        const dropChance = enemy.getItemDropChance();
+        
+        if (Math.random() < dropChance) {
+            const itemId = this.selectItemForLevel(enemy.getLevel());
+            if (itemId) {
+                console.log(`Level ${enemy.getLevel()} original enemy dropped: ${itemId}`);
+                
+                // Try to add to player inventory if there's space
+                if (this.inventory && !this.inventory.isFull()) {
+                    const result = this.inventory.add(itemId as any);
+                    if (result.success) {
+                        console.log(`Added ${itemId} to player inventory`);
+                    }
+                }
+            }
+        }
+    }
+    
+    private selectItemForLevel(enemyLevel: number): string | null {
+        // Same item selection logic as in EnemySpawner
+        const itemPools = {
+            low: ['potion_health_small'], // Levels 1-2
+            mid: ['potion_health_small', 'potion_attack_tonic', 'potion_speed_draught'], // Levels 3-5
+            high: ['potion_attack_tonic', 'potion_speed_draught', 'item_boots_haste', 'item_amulet_strength'], // Levels 6-8
+            elite: ['item_boots_haste', 'item_amulet_strength', 'item_ring_vitality'] // Levels 9+
+        };
+        
+        let pool: string[];
+        if (enemyLevel <= 2) {
+            pool = itemPools.low;
+        } else if (enemyLevel <= 5) {
+            pool = itemPools.mid;
+        } else if (enemyLevel <= 8) {
+            pool = itemPools.high;
+        } else {
+            pool = itemPools.elite;
+        }
+        
+        return pool[Math.floor(Math.random() * pool.length)];
     }
 
     update()

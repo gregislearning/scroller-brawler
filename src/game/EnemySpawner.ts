@@ -11,18 +11,17 @@ export interface SpawnPoint {
 
 export interface EnemySpawnerConfig {
     scene: Scene;
-    player: Phaser.GameObjects.Sprite;
+    player: any; // Changed to any to access player level methods
     maxEnemies?: number; // Maximum enemies alive at once
     onEnemyKilled?: (enemy: Enemy) => void; // Callback for when enemy dies
 }
 
 export class EnemySpawner {
     private scene: Scene;
-    private player: Phaser.GameObjects.Sprite;
+    private player: any; // Changed to any to access player level methods
     private enemies: Enemy[] = [];
     private spawnPoints: SpawnPoint[] = [];
     private maxEnemies: number;
-    private lastSpawnX: number = 0;
     private spawnInterval: number = GAME_CONFIG.SPAWNING.SPAWN_INTERVAL;
     private onEnemyKilled?: (enemy: Enemy) => void;
     
@@ -82,11 +81,14 @@ export class EnemySpawner {
     }
     
     private spawnEnemyAt(spawnPoint: SpawnPoint): void {
+        const enemyLevel = this.calculateEnemyLevel(spawnPoint.x);
+        
         const enemy = new Enemy({
             scene: this.scene,
             x: spawnPoint.x,
             y: spawnPoint.y,
-            texture: 'samurai_enemy'
+            texture: 'samurai_enemy',
+            level: enemyLevel
         });
         
         // Scale enemy to match player display height for consistency
@@ -108,10 +110,20 @@ export class EnemySpawner {
         
         // Set up enemy event listeners
         enemy.on('death', () => {
-            console.log('Enemy defeated in spawner!');
+            console.log(`Level ${enemy.getLevel()} enemy defeated in spawner!`);
             this.removeEnemy(enemy);
             
-            // Call the callback if provided (for experience, etc.)
+            // Award level-based experience
+            if (this.player.gainExperience) {
+                const xpReward = enemy.getExperienceReward();
+                this.player.gainExperience(xpReward);
+                console.log(`Player gained ${xpReward} XP from level ${enemy.getLevel()} enemy`);
+            }
+            
+            // Handle item drops
+            this.handleEnemyItemDrop(enemy);
+            
+            // Call the callback if provided (for additional logic)
             if (this.onEnemyKilled) {
                 this.onEnemyKilled(enemy);
             }
@@ -124,7 +136,25 @@ export class EnemySpawner {
         // Add to our tracking array
         this.enemies.push(enemy);
         
-        console.log(`Spawned enemy at (${spawnPoint.x}, ${spawnPoint.y}). Active enemies: ${this.enemies.length}`);
+        console.log(`Spawned level ${enemyLevel} enemy at (${spawnPoint.x}, ${spawnPoint.y}). Active enemies: ${this.enemies.length}`);
+    }
+    
+    private calculateEnemyLevel(spawnX: number): number {
+        // Calculate enemy level based on world position and player level
+        const worldProgress = spawnX / GAME_CONFIG.WORLD_WIDTH; // 0 to 1
+        const playerLevel = this.player.getLevelInfo ? this.player.getLevelInfo().level : 1;
+        
+        // Base level increases with world progress
+        const worldBasedLevel = Math.floor(1 + worldProgress * 8); // Level 1-9 based on world position
+        
+        // Add some randomness and scale with player level
+        const levelVariation = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+        const playerInfluence = Math.floor(playerLevel * 0.5); // Half of player level as influence
+        
+        const finalLevel = Math.max(1, worldBasedLevel + levelVariation + playerInfluence);
+        
+        // Cap enemy levels to prevent them from being too overwhelming
+        return Math.min(15, finalLevel);
     }
     
     private removeEnemy(enemy: Enemy): void {
@@ -171,6 +201,50 @@ export class EnemySpawner {
         }
         
         return closest;
+    }
+    
+    private handleEnemyItemDrop(enemy: Enemy): void {
+        const dropChance = enemy.getItemDropChance();
+        
+        if (Math.random() < dropChance) {
+            const itemId = this.selectItemForLevel(enemy.getLevel());
+            if (itemId) {
+                // For now, just log the drop - in a full implementation, you'd create a world drop
+                console.log(`Level ${enemy.getLevel()} enemy dropped: ${itemId}`);
+                
+                // Try to add to player inventory if there's space
+                const gameScene = this.scene as any;
+                if (gameScene.inventory && !gameScene.inventory.isFull()) {
+                    const result = gameScene.inventory.add(itemId);
+                    if (result.success) {
+                        console.log(`Added ${itemId} to player inventory`);
+                    }
+                }
+            }
+        }
+    }
+    
+    private selectItemForLevel(enemyLevel: number): string | null {
+        // Define level-based item drop pools
+        const itemPools = {
+            low: ['potion_health_small'], // Levels 1-2
+            mid: ['potion_health_small', 'potion_attack_tonic', 'potion_speed_draught'], // Levels 3-5
+            high: ['potion_attack_tonic', 'potion_speed_draught', 'item_boots_haste', 'item_amulet_strength'], // Levels 6-8
+            elite: ['item_boots_haste', 'item_amulet_strength', 'item_ring_vitality'] // Levels 9+
+        };
+        
+        let pool: string[];
+        if (enemyLevel <= 2) {
+            pool = itemPools.low;
+        } else if (enemyLevel <= 5) {
+            pool = itemPools.mid;
+        } else if (enemyLevel <= 8) {
+            pool = itemPools.high;
+        } else {
+            pool = itemPools.elite;
+        }
+        
+        return pool[Math.floor(Math.random() * pool.length)];
     }
     
     // Reset spawn points (useful for restarting level)
