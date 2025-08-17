@@ -221,7 +221,7 @@ export class Game extends Scene
         });
 
         // Instructions text (positioned relative to world, not camera)
-        this.add.text(GAME_CONFIG.PLAYER_START_X, CALCULATED_VALUES.CENTER_Y - 100, 'Arrow Keys or WASD to Move\nSPACE to Attack\nExplore the Forest Environment!\nGround layer (front.png) creates walkable surface', {
+        this.add.text(GAME_CONFIG.PLAYER_START_X, CALCULATED_VALUES.CENTER_Y - 100, 'Arrow Keys to Move\nSPACE to Attack\nExplore the Forest Environment!\nGround layer (front.png) creates walkable surface', {
             fontFamily: 'Arial Black', fontSize: 16, color: '#ffffff',
             stroke: '#000000', strokeThickness: 4,
             align: 'center'

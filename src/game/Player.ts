@@ -16,6 +16,7 @@ export enum PlayerState {
     ATTACKING = 'attacking',
     HURT = 'hurt',
     STUNNED = 'stunned',
+    BLOCKING = 'blocking',
     DEAD = 'dead'
 }
 
@@ -45,6 +46,7 @@ export class Player extends Physics.Arcade.Sprite {
     // Combat
     private attackRange: number = 80;
     private isAttacking: boolean = false;
+    private isBlocking: boolean = false;
     
     // UI Elements
     private healthBar: HealthBar;
@@ -89,10 +91,10 @@ export class Player extends Physics.Arcade.Sprite {
     }
     
     private setupInput(): void {
-        // Cursor keys (arrow keys)
+        // Cursor keys (arrow keys) - only for movement
         this.cursors = this.scene.input.keyboard!.createCursorKeys();
         
-        // WASD keys
+        // WASD keys - reserved for other actions, not movement
         this.wasdKeys = this.scene.input.keyboard!.addKeys('W,S,A,D,SPACE') as { [key: string]: Phaser.Input.Keyboard.Key };
     }
     
@@ -153,14 +155,18 @@ export class Player extends Physics.Arcade.Sprite {
     private handleInput(): void {
         if (this.currentState === PlayerState.ATTACKING || 
             this.currentState === PlayerState.HURT || 
-            this.currentState === PlayerState.STUNNED) {
+            this.currentState === PlayerState.STUNNED ||
+            this.currentState === PlayerState.BLOCKING) {
             return;
         }
         
-        const leftPressed = this.cursors.left?.isDown || this.wasdKeys.A?.isDown;
-        const rightPressed = this.cursors.right?.isDown || this.wasdKeys.D?.isDown;
-        const upPressed = this.cursors.up?.isDown || this.wasdKeys.W?.isDown;
-        const downPressed = this.cursors.down?.isDown || this.wasdKeys.S?.isDown;
+        // Only arrow keys for movement
+        const leftPressed = this.cursors.left?.isDown;
+        const rightPressed = this.cursors.right?.isDown;
+        const upPressed = this.cursors.up?.isDown;
+        const downPressed = this.cursors.down?.isDown;
+        
+        // Attack can use either space or WASD space
         const attackPressed = this.cursors.space?.isDown || this.wasdKeys.SPACE?.isDown;
         
         // Handle movement
@@ -199,6 +205,7 @@ export class Player extends Physics.Arcade.Sprite {
         if (this.currentState === PlayerState.ATTACKING || 
             this.currentState === PlayerState.HURT || 
             this.currentState === PlayerState.STUNNED || 
+            this.currentState === PlayerState.BLOCKING ||
             this.currentState === PlayerState.DEAD) {
             return;
         }
@@ -230,6 +237,9 @@ export class Player extends Physics.Arcade.Sprite {
             case PlayerState.STUNNED:
                 this.play('player_hurt', true); // Use hurt animation for stunned state
                 break;
+            case PlayerState.BLOCKING:
+                this.play('player_idle', true); // Use idle animation for blocking (defensive stance)
+                break;
         }
     }
     
@@ -241,6 +251,11 @@ export class Player extends Physics.Arcade.Sprite {
     }
     
     private onStateChange(state: PlayerState): void {
+        // Clean up previous state
+        if (this.currentState === PlayerState.BLOCKING && state !== PlayerState.BLOCKING) {
+            this.isBlocking = false;
+        }
+        
         switch (state) {
             case PlayerState.ATTACKING:
                 this.isAttacking = true;
@@ -275,6 +290,14 @@ export class Player extends Physics.Arcade.Sprite {
                     }
                 });
                 break;
+                
+            case PlayerState.BLOCKING:
+                this.isBlocking = true;
+                this.setVelocity(0, 0); // Stop movement during block
+                
+                // Note: Blocking state will be controlled externally (key press/release)
+                // No automatic timeout for blocking
+                break;
         }
     }
     
@@ -282,6 +305,7 @@ export class Player extends Physics.Arcade.Sprite {
         const currentTime = this.scene.time.now;
         return !this.isAttacking && 
                this.currentState !== PlayerState.STUNNED && 
+               this.currentState !== PlayerState.BLOCKING &&
                (currentTime - this.lastAttackTime) >= this.attackCooldown;
     }
     
@@ -309,6 +333,12 @@ export class Player extends Physics.Arcade.Sprite {
             return;
         }
         
+        // Check if blocking - reduce damage to 10% if blocking
+        if (this.isBlocking && this.currentState === PlayerState.BLOCKING) {
+            damage = Math.floor(damage * 0.1); // 10% damage when blocking
+            console.log(`Player blocked! Damage reduced to ${damage}`);
+        }
+        
         this.currentHealth = Math.max(0, this.currentHealth - damage);
         
         // Update health bar
@@ -317,10 +347,25 @@ export class Player extends Physics.Arcade.Sprite {
         if (this.currentHealth <= 0) {
             this.die();
         } else {
-            // Set to stunned state when taking damage - prevents attacking
-            this.setPlayerState(PlayerState.STUNNED);
-            // Also trigger hurt state for visual feedback and invulnerability
-            this.makeInvulnerable();
+            // Only get stunned if not blocking
+            if (this.currentState !== PlayerState.BLOCKING) {
+                // Set to stunned state when taking damage - prevents attacking
+                this.setPlayerState(PlayerState.STUNNED);
+                // Also trigger hurt state for visual feedback and invulnerability
+                this.makeInvulnerable();
+            } else {
+                // If blocking, just show brief damage effect without stunning
+                this.scene.tweens.add({
+                    targets: this,
+                    alpha: 0.8,
+                    duration: 100,
+                    yoyo: true,
+                    repeat: 1,
+                    onComplete: () => {
+                        this.setAlpha(1);
+                    }
+                });
+            }
         }
         
         // Emit damage event for UI updates
@@ -348,6 +393,10 @@ export class Player extends Physics.Arcade.Sprite {
         this.setPlayerState(PlayerState.DEAD);
         this.setVelocity(0, 0);
         
+        // Reset combat flags
+        this.isBlocking = false;
+        this.isAttacking = false;
+        
         // Hide health bar
         this.healthBar.setVisible(false);
         
@@ -365,6 +414,23 @@ export class Player extends Physics.Arcade.Sprite {
     public heal(amount: number): void {
         this.currentHealth = Math.min(this.maxHealth, this.currentHealth + amount);
         this.emit('heal', this.currentHealth, this.maxHealth);
+    }
+    
+    public startBlocking(): void {
+        if (this.currentState === PlayerState.IDLE || this.currentState === PlayerState.WALKING) {
+            this.setPlayerState(PlayerState.BLOCKING);
+        }
+    }
+    
+    public stopBlocking(): void {
+        if (this.currentState === PlayerState.BLOCKING) {
+            this.isBlocking = false;
+            this.setPlayerState(PlayerState.IDLE);
+        }
+    }
+    
+    public isCurrentlyBlocking(): boolean {
+        return this.isBlocking && this.currentState === PlayerState.BLOCKING;
     }
     
     public getHealthPercentage(): number {

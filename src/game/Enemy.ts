@@ -305,6 +305,11 @@ export class Enemy extends Physics.Arcade.Sprite {
     }
     
     private onStateChange(state: EnemyState): void {
+        // Clean up previous state
+        if (this.currentState === EnemyState.BLOCKING && state !== EnemyState.BLOCKING) {
+            this.isBlocking = false;
+        }
+        
         switch (state) {
             case EnemyState.ATTACKING:
                 this.isAttacking = true;
@@ -453,8 +458,9 @@ export class Enemy extends Physics.Arcade.Sprite {
         
         // Check if blocking
         if (this.isBlocking && Math.random() < 0.7) { // 70% block success rate
-            // Damage reduced by blocking
-            damage = Math.floor(damage * 0.3);
+            // Damage reduced to 10% when blocking
+            damage = Math.floor(damage * 0.1);
+            console.log(`Level ${this.level} enemy blocked! Damage reduced to ${damage}`);
         }
         
         this.currentHealth = Math.max(0, this.currentHealth - damage);
@@ -481,6 +487,17 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
     }
     
+    public stopBlocking(): void {
+        if (this.currentState === EnemyState.BLOCKING) {
+            this.isBlocking = false;
+            this.setEnemyState(EnemyState.IDLE);
+        }
+    }
+    
+    public isCurrentlyBlocking(): boolean {
+        return this.isBlocking && this.currentState === EnemyState.BLOCKING;
+    }
+    
     private makeInvulnerable(): void {
         this.isInvulnerable = true;
         this.setTint(0xff0000); // Red tint to show damage
@@ -495,6 +512,10 @@ export class Enemy extends Physics.Arcade.Sprite {
         this.setEnemyState(EnemyState.DEAD);
         this.setVelocity(0, 0);
         this.setTint(0x666666); // Gray tint for death
+        
+        // Reset combat flags
+        this.isBlocking = false;
+        this.isAttacking = false;
         
         // Hide health bar
         this.healthBar.setVisible(false);
