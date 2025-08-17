@@ -171,7 +171,7 @@ export class Game extends Scene
             x: GAME_CONFIG.PLAYER_START_X + 300, // Start 300 pixels to the right of player
             y: GAME_CONFIG.PLAYER_START_Y,
             texture: 'samurai_enemy',
-            level: 2 // Make the original enemy level 2 for testing
+            level: 1 // First level enemy should be level 1
         });
 
         // Scale enemy to match player display height so large spritesheets don't dominate

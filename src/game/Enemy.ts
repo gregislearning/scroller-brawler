@@ -17,6 +17,7 @@ export enum EnemyState {
     BLOCKING = 'blocking',
     ATTACKING = 'attacking',
     HURT = 'hurt',
+    STUNNED = 'stunned',
     DEAD = 'dead'
 }
 
@@ -220,6 +221,7 @@ export class Enemy extends Physics.Arcade.Sprite {
     private updateAI(playerX: number, playerY: number): void {
         if (this.currentState === EnemyState.ATTACKING || 
             this.currentState === EnemyState.HURT || 
+            this.currentState === EnemyState.STUNNED || 
             this.currentState === EnemyState.BLOCKING ||
             this.isWindingUp) {
             return;
@@ -337,12 +339,24 @@ export class Enemy extends Physics.Arcade.Sprite {
                     }
                 });
                 break;
+                
+            case EnemyState.STUNNED:
+                this.setVelocity(0, 0); // Stop movement during stun
+                
+                // End stunned state - longer duration for clear feedback
+                this.scene.time.delayedCall(800, () => {
+                    if (this.currentHealth > 0) {
+                        this.setEnemyState(EnemyState.IDLE);
+                    }
+                });
+                break;
         }
     }
     
     private updateState(): void {
         if (this.currentState === EnemyState.ATTACKING || 
             this.currentState === EnemyState.HURT || 
+            this.currentState === EnemyState.STUNNED || 
             this.currentState === EnemyState.BLOCKING) {
             return; // Don't change state during these actions
         }
@@ -374,12 +388,17 @@ export class Enemy extends Physics.Arcade.Sprite {
             case EnemyState.HURT:
                 this.play('samurai_hurt', true);
                 break;
+            case EnemyState.STUNNED:
+                this.play('samurai_hurt', true); // Use hurt animation for stunned state
+                break;
         }
     }
     
     private canAttack(): boolean {
         const currentTime = this.scene.time.now;
-        return currentTime - this.lastAttackTime >= this.attackCooldown;
+        return !this.isAttacking && 
+               this.currentState !== EnemyState.STUNNED && 
+               currentTime - this.lastAttackTime >= this.attackCooldown;
     }
     
     private startAttackWindup(): void {
@@ -446,7 +465,10 @@ export class Enemy extends Physics.Arcade.Sprite {
         if (this.currentHealth <= 0) {
             this.die();
         } else {
-            this.setEnemyState(EnemyState.HURT);
+            // Set to stunned state when taking damage - prevents attacking
+            this.setEnemyState(EnemyState.STUNNED);
+            // Also trigger invulnerability for visual feedback
+            this.makeInvulnerable();
         }
         
         // Emit damage event

@@ -15,6 +15,7 @@ export enum PlayerState {
     WALKING = 'walking',
     ATTACKING = 'attacking',
     HURT = 'hurt',
+    STUNNED = 'stunned',
     DEAD = 'dead'
 }
 
@@ -150,7 +151,9 @@ export class Player extends Physics.Arcade.Sprite {
     }
     
     private handleInput(): void {
-        if (this.currentState === PlayerState.ATTACKING || this.currentState === PlayerState.HURT) {
+        if (this.currentState === PlayerState.ATTACKING || 
+            this.currentState === PlayerState.HURT || 
+            this.currentState === PlayerState.STUNNED) {
             return;
         }
         
@@ -195,6 +198,7 @@ export class Player extends Physics.Arcade.Sprite {
     private updateState(): void {
         if (this.currentState === PlayerState.ATTACKING || 
             this.currentState === PlayerState.HURT || 
+            this.currentState === PlayerState.STUNNED || 
             this.currentState === PlayerState.DEAD) {
             return;
         }
@@ -222,6 +226,9 @@ export class Player extends Physics.Arcade.Sprite {
                 break;
             case PlayerState.HURT:
                 this.play('player_hurt', true);
+                break;
+            case PlayerState.STUNNED:
+                this.play('player_hurt', true); // Use hurt animation for stunned state
                 break;
         }
     }
@@ -257,12 +264,25 @@ export class Player extends Physics.Arcade.Sprite {
                     }
                 });
                 break;
+                
+            case PlayerState.STUNNED:
+                this.setVelocity(0, 0); // Stop movement during stun
+                
+                // End stunned state - longer duration than hurt for clear feedback
+                this.scene.time.delayedCall(800, () => {
+                    if (this.currentHealth > 0) {
+                        this.setPlayerState(PlayerState.IDLE);
+                    }
+                });
+                break;
         }
     }
     
     private canAttack(): boolean {
         const currentTime = this.scene.time.now;
-        return !this.isAttacking && (currentTime - this.lastAttackTime) >= this.attackCooldown;
+        return !this.isAttacking && 
+               this.currentState !== PlayerState.STUNNED && 
+               (currentTime - this.lastAttackTime) >= this.attackCooldown;
     }
     
     public attack(): void {
@@ -297,7 +317,10 @@ export class Player extends Physics.Arcade.Sprite {
         if (this.currentHealth <= 0) {
             this.die();
         } else {
-            this.setPlayerState(PlayerState.HURT);
+            // Set to stunned state when taking damage - prevents attacking
+            this.setPlayerState(PlayerState.STUNNED);
+            // Also trigger hurt state for visual feedback and invulnerability
+            this.makeInvulnerable();
         }
         
         // Emit damage event for UI updates

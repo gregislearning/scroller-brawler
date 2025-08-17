@@ -81,7 +81,7 @@ export class EnemySpawner {
     }
     
     private spawnEnemyAt(spawnPoint: SpawnPoint): void {
-        const enemyLevel = this.calculateEnemyLevel(spawnPoint.x);
+        const enemyLevel = this.calculateEnemyLevel();
         
         const enemy = new Enemy({
             scene: this.scene,
@@ -139,22 +139,9 @@ export class EnemySpawner {
         console.log(`Spawned level ${enemyLevel} enemy at (${spawnPoint.x}, ${spawnPoint.y}). Active enemies: ${this.enemies.length}`);
     }
     
-    private calculateEnemyLevel(spawnX: number): number {
-        // Calculate enemy level based on world position and player level
-        const worldProgress = spawnX / GAME_CONFIG.WORLD_WIDTH; // 0 to 1
-        const playerLevel = this.player.getLevelInfo ? this.player.getLevelInfo().level : 1;
-        
-        // Base level increases with world progress
-        const worldBasedLevel = Math.floor(1 + worldProgress * 8); // Level 1-9 based on world position
-        
-        // Add some randomness and scale with player level
-        const levelVariation = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
-        const playerInfluence = Math.floor(playerLevel * 0.5); // Half of player level as influence
-        
-        const finalLevel = Math.max(1, worldBasedLevel + levelVariation + playerInfluence);
-        
-        // Cap enemy levels to prevent them from being too overwhelming
-        return Math.min(15, finalLevel);
+    private calculateEnemyLevel(): number {
+        // All enemies are currently level 1
+        return 1;
     }
     
     private removeEnemy(enemy: Enemy): void {
