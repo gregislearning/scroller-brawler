@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { Player } from '../Player';
 import { Enemy } from '../Enemy';
+import { RangedEnemy } from '../RangedEnemy';
 import { CameraManager } from '../CameraManager';
 import { ParallaxBackground } from '../ParallaxBackground';
 import { HealthBar } from '../HealthBar';
@@ -26,6 +27,7 @@ export class Game extends Scene
     inventory: Inventory;
     inventoryUI: InventoryUI;
     inventoryController: InventoryController;
+    projectiles: any[] = []; // Track active projectiles (now simple game objects)
 
     constructor ()
     {
@@ -159,7 +161,7 @@ export class Game extends Scene
             scene: this,
             player: this.player,
             maxEnemies: GAME_CONFIG.SPAWNING.MAX_ENEMIES,
-            onEnemyKilled: (_enemy: Enemy) => {
+            onEnemyKilled: (_enemy: Enemy | RangedEnemy) => {
                 // Additional logic for when enemies die (experience is handled in spawner now)
                 console.log('Enemy killed - additional cleanup or effects can go here');
             }
@@ -438,6 +440,72 @@ export class Game extends Scene
         
         return pool[Math.floor(Math.random() * pool.length)];
     }
+    
+    private handleEnemyProjectile(projectileData: any): void {
+        const projectile = projectileData.projectile;
+        
+        // Add projectile to our tracking array (now it's a simple game object, not a Projectile class)
+        this.projectiles.push(projectile);
+        
+        console.log(`Enemy fired projectile at (${Math.round(projectile.x)}, ${Math.round(projectile.y)}) towards player at (${Math.round(this.player.x)}, ${Math.round(this.player.y)})`);
+    }
+    
+
+    
+    private updateProjectiles(): void {
+        // Clean up destroyed projectiles
+        this.projectiles = this.projectiles.filter(projectile => projectile.active);
+        
+        // Check collision between projectiles and player
+        for (const projectile of this.projectiles) {
+            if (!projectile.active) continue;
+            
+            // Simple distance-based collision for circle projectiles
+            const distance = Phaser.Math.Distance.Between(
+                projectile.x, projectile.y,
+                this.player.x, this.player.y
+            );
+            
+            // Use a generous collision radius
+            const playerRadius = Math.max(this.player.displayWidth, this.player.displayHeight) / 2;
+            const projectileRadius = 8; // Circle radius
+            const collisionDistance = playerRadius + projectileRadius + 25; // Increased tolerance to 25px
+            
+            // Debug: Log near misses
+            if (distance <= collisionDistance + 20) {
+                console.log(`🎯 Projectile nearby - Distance: ${Math.round(distance)}, Required: ${Math.round(collisionDistance)}, Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}), Projectile: (${Math.round(projectile.x)}, ${Math.round(projectile.y)})`);
+            }
+            
+            if (distance <= collisionDistance) {
+                console.log(`🎯 PROJECTILE HIT! Distance: ${Math.round(distance)}, Required: ${Math.round(collisionDistance)}`);
+                console.log(`Player pos: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}), Projectile pos: (${Math.round(projectile.x)}, ${Math.round(projectile.y)})`);
+                
+                // Apply damage directly
+                const damage = (projectile as any).damage || 15;
+                this.player.takeDamage(damage);
+                
+                // Create impact effect
+                const impactEffect = this.add.circle(projectile.x, projectile.y, 12, 0xffaa00, 0.8);
+                impactEffect.setDepth(DEPTH_LAYERS.EFFECTS);
+                this.tweens.add({
+                    targets: impactEffect,
+                    scaleX: 0,
+                    scaleY: 0,
+                    alpha: 0,
+                    duration: 200,
+                    ease: 'Power2',
+                    onComplete: () => impactEffect.destroy()
+                });
+                
+                // Remove projectile from tracking and destroy it
+                const index = this.projectiles.indexOf(projectile);
+                if (index > -1) {
+                    this.projectiles.splice(index, 1);
+                }
+                projectile.destroy();
+            }
+        }
+    }
 
     update()
     {
@@ -463,7 +531,17 @@ export class Game extends Scene
                     this.handleEnemyAttack(attackData);
                 });
             }
+            
+            // Set up projectile event listener for ranged enemies (if not already set)
+            if (enemy instanceof RangedEnemy && enemy.listeners('projectile').length === 0) {
+                enemy.on('projectile', (projectileData: any) => {
+                    this.handleEnemyProjectile(projectileData);
+                });
+            }
         }
+        
+        // Update projectiles and handle collisions
+        this.updateProjectiles();
         
         // Update advanced camera system
         this.cameraManager.update();
@@ -493,6 +571,7 @@ export class Game extends Scene
             const enemyState = this.enemy && this.enemy.active ? this.enemy.getState() : 'dead';
             const spawnedEnemyCount = this.enemySpawner.getEnemyCount();
             const playerLevelInfo = this.player.getLevelInfo();
+            const projectileCount = this.projectiles.length;
             
             this.debugText.setText([
                 `Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)}) | Camera: (${cameraX}, ${cameraY})`,
@@ -500,7 +579,7 @@ export class Game extends Scene
                 `Player - Level: ${playerLevelInfo.level} | XP: ${playerLevelInfo.experience}/${playerLevelInfo.experienceToNext} (${playerLevelInfo.experienceProgress}%)`,
                 `Player - State: ${this.player.getCurrentState()} | Health: ${this.player.currentHealth}/${this.player.maxHealth} | ATK: ${this.player.attackDamage}`,
                 `Original Enemy - State: ${enemyState} | Health: ${enemyHealth.current}/${enemyHealth.max}`,
-                `Spawned Enemies: ${spawnedEnemyCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`
+                `Spawned Enemies: ${spawnedEnemyCount} | Projectiles: ${projectileCount} | Scale: ${this.player.scaleX}x | Forest Layers: ${layerCount}`
             ]);
         }
     }

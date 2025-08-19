@@ -35,23 +35,23 @@ export class Enemy extends Physics.Arcade.Sprite {
     private baseSpeed: number = 100;
     
     // State management
-    private currentState: EnemyState = EnemyState.IDLE;
-    private attackCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ATTACK_COOLDOWN;
-    private lastAttackTime: number = 0;
+    protected currentState: EnemyState = EnemyState.IDLE;
+    protected attackCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ATTACK_COOLDOWN;
+    protected lastAttackTime: number = 0;
     private isInvulnerable: boolean = false;
     private invulnerabilityDuration: number = 500; // milliseconds
     
     // Combat
-    private attackRange: number = 70;
-    private isAttacking: boolean = false;
-    private isBlocking: boolean = false;
-    private isWindingUp: boolean = false; // Telegraph phase before attack
+    protected attackRange: number = 70;
+    protected isAttacking: boolean = false;
+    protected isBlocking: boolean = false;
+    protected isWindingUp: boolean = false; // Telegraph phase before attack
     
     // AI behavior
-    private detectionRange: number = 200;
-    private lastActionTime: number = 0;
-    private actionCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ACTION_COOLDOWN;
-    private verticalAttackTolerance: number = 28; // Max vertical offset to attempt a swing
+    protected detectionRange: number = 200;
+    protected lastActionTime: number = 0;
+    protected actionCooldown: number = GAME_CONFIG.ENEMY_COMBAT.ACTION_COOLDOWN;
+    protected verticalAttackTolerance: number = 28; // Max vertical offset to attempt a swing
     
     // UI Elements
     private healthBar: HealthBar;
@@ -258,7 +258,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
     }
     
-    private moveTowardsPlayer(playerX: number, playerY: number): void {
+    protected moveTowardsPlayer(playerX: number, playerY: number): void {
         const directionX = playerX - this.x;
         const directionY = playerY - this.y;
         const distance = Math.sqrt(directionX * directionX + directionY * directionY);
@@ -297,7 +297,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
     }
     
-    private setEnemyState(newState: EnemyState): void {
+    protected setEnemyState(newState: EnemyState): void {
         if (this.currentState !== newState) {
             this.currentState = newState;
             this.onStateChange(newState);
@@ -376,7 +376,7 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
     }
     
-    private updateAnimations(): void {
+    protected updateAnimations(): void {
         switch (this.currentState) {
             case EnemyState.IDLE:
                 this.play('samurai_idle', true);
@@ -399,14 +399,14 @@ export class Enemy extends Physics.Arcade.Sprite {
         }
     }
     
-    private canAttack(): boolean {
+    protected canAttack(): boolean {
         const currentTime = this.scene.time.now;
         return !this.isAttacking && 
                this.currentState !== EnemyState.STUNNED && 
                currentTime - this.lastAttackTime >= this.attackCooldown;
     }
     
-    private startAttackWindup(): void {
+    protected startAttackWindup(): void {
         this.isWindingUp = true;
         this.setVelocity(0, 0); // Stop moving during windup
         

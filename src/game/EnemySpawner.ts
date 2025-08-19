@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { Enemy } from './Enemy';
+import { RangedEnemy } from './RangedEnemy';
 import { GAME_CONFIG } from './GameConstants';
 
 export interface SpawnPoint {
@@ -13,17 +14,17 @@ export interface EnemySpawnerConfig {
     scene: Scene;
     player: any; // Changed to any to access player level methods
     maxEnemies?: number; // Maximum enemies alive at once
-    onEnemyKilled?: (enemy: Enemy) => void; // Callback for when enemy dies
+    onEnemyKilled?: (enemy: Enemy | RangedEnemy) => void; // Callback for when enemy dies
 }
 
 export class EnemySpawner {
     private scene: Scene;
     private player: any; // Changed to any to access player level methods
-    private enemies: Enemy[] = [];
+    private enemies: (Enemy | RangedEnemy)[] = [];
     private spawnPoints: SpawnPoint[] = [];
     private maxEnemies: number;
     private spawnInterval: number = GAME_CONFIG.SPAWNING.SPAWN_INTERVAL;
-    private onEnemyKilled?: (enemy: Enemy) => void;
+    private onEnemyKilled?: (enemy: Enemy | RangedEnemy) => void;
     
     constructor(config: EnemySpawnerConfig) {
         this.scene = config.scene;
@@ -83,7 +84,8 @@ export class EnemySpawner {
     private spawnEnemyAt(spawnPoint: SpawnPoint): void {
         const enemyLevel = this.calculateEnemyLevel();
         
-        const enemy = new Enemy({
+        // Only spawn ranged enemies for testing
+        const enemy = new RangedEnemy({
             scene: this.scene,
             x: spawnPoint.x,
             y: spawnPoint.y,
@@ -136,7 +138,7 @@ export class EnemySpawner {
         // Add to our tracking array
         this.enemies.push(enemy);
         
-        console.log(`Spawned level ${enemyLevel} enemy at (${spawnPoint.x}, ${spawnPoint.y}). Active enemies: ${this.enemies.length}`);
+        console.log(`Spawned level ${enemyLevel} ranged enemy at (${spawnPoint.x}, ${spawnPoint.y}). Active enemies: ${this.enemies.length}`);
     }
     
     private calculateEnemyLevel(): number {
@@ -144,7 +146,7 @@ export class EnemySpawner {
         return 1;
     }
     
-    private removeEnemy(enemy: Enemy): void {
+    private removeEnemy(enemy: Enemy | RangedEnemy): void {
         const index = this.enemies.indexOf(enemy);
         if (index > -1) {
             this.enemies.splice(index, 1);
@@ -156,7 +158,7 @@ export class EnemySpawner {
         this.enemies = this.enemies.filter(enemy => enemy.active);
     }
     
-    public getActiveEnemies(): Enemy[] {
+    public getActiveEnemies(): (Enemy | RangedEnemy)[] {
         return this.enemies.filter(enemy => enemy.active);
     }
     
@@ -165,7 +167,7 @@ export class EnemySpawner {
     }
     
     // Method to get the closest enemy to the player (useful for combat systems)
-    public getClosestEnemy(): Enemy | null {
+    public getClosestEnemy(): (Enemy | RangedEnemy) | null {
         if (this.enemies.length === 0) return null;
         
         let closest = this.enemies[0];
@@ -190,7 +192,7 @@ export class EnemySpawner {
         return closest;
     }
     
-    private handleEnemyItemDrop(enemy: Enemy): void {
+    private handleEnemyItemDrop(enemy: Enemy | RangedEnemy): void {
         const dropChance = enemy.getItemDropChance();
         
         if (Math.random() < dropChance) {
